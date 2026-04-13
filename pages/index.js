@@ -237,6 +237,10 @@ export default function Home(){
   const[lastUp,setLastUp]=useState(null);const[tasi,setTasi]=useState(null);const[alerts,setAlerts]=useState([]);
   const[showAlerts,setShowAlerts]=useState(false);const[sigMap,setSigMap]=useState({});const prevRef=useRef([]);
   const[tickersSource,setTickersSource]=useState("local");
+  const[mainView,setMainView]=useState("market");
+  const[scanResults,setScanResults]=useState([]);
+  const[scanLoading,setScanLoading]=useState(false);
+  const[scanDone,setScanDone]=useState(false);
 
   // تحميل قائمة الأسهم الكاملة من EODHD عند أول تشغيل
   useEffect(()=>{
@@ -270,6 +274,49 @@ export default function Home(){
   useEffect(()=>{if(!sel)return;(async()=>{try{const r=await fetch(`/api/chart?symbol=${sel.symbol}`);if(r.ok){const d=await r.json();setChartData(d.chart||[])}}catch{setChartData([])}})()},[sel]);
   useEffect(()=>{if(stocks.every(s=>!s.data))return;const f=async()=>{const m={};await Promise.allSettled(stocks.map(async s=>{if(!s.data)return;try{const r=await fetch(`/api/chart?symbol=${s.symbol}`);if(r.ok){const d=await r.json();m[s.symbol]=generateSignals(d.chart||[])}}catch{}}));setSigMap(m)};f()},[stocks]);
 
+
+  // سكانر اليوم التالي
+  const runScanner=useCallback(async()=>{
+    setScanLoading(true);setScanDone(false);setScanResults([]);
+    const list=stocks.filter(s=>s.data);
+    const results=[];
+    await Promise.allSettled(list.map(async s=>{
+      try{
+        const r=await fetch(`/api/chart?symbol=${s.symbol}`);
+        if(!r.ok)return;
+        const d=await r.json();
+        const cd=d.chart||[];
+        if(cd.length<30)return;
+        const closes=cd.map(x=>x.close);
+        const vols=cd.map(x=>x.volume);
+        const highs=cd.map(x=>x.high);
+        const lows=cd.map(x=>x.low);
+        const rsi=calcRSI(closes);
+        const macd=calcMACD(closes);
+        const sma20=calcSMA(closes,20);
+        const sma50=calcSMA(closes,50);
+        const price=closes[closes.length-1];
+        const avgVol=vols.slice(-20).reduce((a,v)=>a+v,0)/20;
+        const lastVol=vols[vols.length-1];
+        const atr=calcATR(highs,lows,closes);
+        const c1=rsi>=32&&rsi<=55;
+        const c2=lastVol>avgVol*1.3;
+        const c3=macd.histogram>0&&macd.macd>macd.signal;
+        const c4=sma20&&price>sma20;
+        const c5=sma20&&sma50&&sma20>sma50;
+        const score=[c1,c2,c3,c4,c5].filter(Boolean).length;
+        if(score>=3){
+          const target=(price*(1+0.015)).toFixed(2);
+          const stop=(price*(1-0.008)).toFixed(2);
+          results.push({...s,price,rsi,macdH:macd.histogram,vol:lastVol,avgVol,atr,score,conditions:{c1,c2,c3,c4,c5},target,stop,strength:score===5?"🔥 ممتاز":score===4?"⭐ قوي":"✅ جيد"});
+        }
+      }catch(e){}
+    }));
+    results.sort((a,b)=>b.score-a.score);
+    setScanResults(results.slice(0,10));
+    setScanLoading(false);setScanDone(true);
+  },[stocks]);
+
   const sigData=useMemo(()=>generateSignals(chartData),[chartData]);
   const filtered=stocks.filter(s=>{const sm=sector==="الكل"||s.sector===sector;const qm=!search||s.name.includes(search)||s.nameEn.toLowerCase().includes(search.toLowerCase())||s.symbol.includes(search);const sf=sigFilter==="الكل"||(!sigMap[s.symbol]?sigFilter==="الكل":sigFilter==="شراء"?(sigMap[s.symbol]?.strength>=4):sigFilter==="حيادي"?(sigMap[s.symbol]?.strength===3):sigFilter==="بيع"?(sigMap[s.symbol]?.strength<=2):sigFilter==="صاعد"?(s.data?.changePercent>0):sigFilter==="هابط"?(s.data?.changePercent<0):true);return sm&&qm&&sf});
 
@@ -290,11 +337,45 @@ export default function Home(){
         </div>
       </div></header>
 
-      <div className="tbar"><div className="sbox"><span>🔍</span><input placeholder="ابحث عن سهم..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="stabs">{SECTORS.map(s=><button key={s} className={`stb${sector===s?" act":""}`} onClick={()=>setSector(s)}>{s}</button>)}</div><div className="vtog"><button className={view==="cards"?"act":""} onClick={()=>setView("cards")}>📊 بطاقات</button><button className={view==="heatmap"?"act":""} onClick={()=>setView("heatmap")}>🗺️ خريطة</button></div></div>
+      <div className="maintabs"><button className={`mtb${mainView==="market"?" mact":""}`} onClick={()=>setMainView("market")}>📊 السوق</button><button className={`mtb${mainView==="scanner"?" mact":""}`} onClick={()=>setMainView("scanner")}>🎯 سكانر اليوم التالي</button></div>
+      {mainView==="market"&&<div className="tbar"><div className="sbox"><span>🔍</span><input placeholder="ابحث عن سهم..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="stabs">{SECTORS.map(s=><button key={s} className={`stb${sector===s?" act":""}`} onClick={()=>setSector(s)}>{s}</button>)}</div><div className="vtog"><button className={view==="cards"?"act":""} onClick={()=>setView("cards")}>📊 بطاقات</button><button className={view==="heatmap"?"act":""} onClick={()=>setView("heatmap")}>🗺️ خريطة</button></div></div>}
+      {mainView==="market"&&<div className="sigbar"><span className="sigbar-label">⚡ فلتر الإشارات:</span><div className="sigbtns">{["الكل","شراء","حيادي","بيع","صاعد","هابط"].map(f=><button key={f} className={`sfb sfb-${f}${sigFilter===f?" sact":""}`} onClick={()=>setSigFilter(f)}>{f==="الكل"?"📋 الكل":f==="شراء"?"🟢 شراء":f==="حيادي"?"🟡 حيادي":f==="بيع"?"🔴 بيع":f==="صاعد"?"📈 صاعد":"📉 هابط"}</button>)}</div><span className="sigbar-count">{filtered.length} سهم</span></div>}
 
-      <div className="sigbar"><span className="sigbar-label">⚡ فلتر الإشارات:</span><div className="sigbtns">{["الكل","شراء","حيادي","بيع","صاعد","هابط"].map(f=><button key={f} className={`sfb sfb-${f}${sigFilter===f?" sact":""}`} onClick={()=>setSigFilter(f)}>{f==="الكل"?"📋 الكل":f==="شراء"?"🟢 شراء":f==="حيادي"?"🟡 حيادي":f==="بيع"?"🔴 بيع":f==="صاعد"?"📈 صاعد":"📉 هابط"}</button>)}</div><span className="sigbar-count">{filtered.length} سهم</span></div>
 
-      <main className="mn"><div className={`cgrid${sel?" hdet":""}`}>
+      <main className="mn">
+      {mainView==="scanner"&&<div className="scanner-wrap">
+        <div className="scan-hdr">
+          <div><h2 className="scan-title">🎯 سكانر اليوم التالي</h2><p className="scan-sub">يبحث عن أسهم مرشحة للصعود غداً بناءً على: RSI + MACD + حجم التداول + المتوسطات</p></div>
+          <button className="scanbtn" onClick={runScanner} disabled={scanLoading}>{scanLoading?"⏳ جاري الفحص...":"🔍 ابدأ الفحص"}</button>
+        </div>
+        {scanLoading&&<div className="scan-loading"><div className="scan-spinner"/><p>يفحص {stocks.filter(s=>s.data).length} سهم...</p></div>}
+        {scanDone&&!scanLoading&&<>
+          <div className="scan-summary">{scanResults.length>0?`✅ وجد ${scanResults.length} سهم مرشح للغد`:"❌ لا توجد أسهم تحقق الشروط الآن"}</div>
+          <div className="scan-disclaimer">⚠️ للأغراض التعليمية فقط — ليس نصيحة استثمارية — تحقق دائماً قبل الدخول</div>
+          <div className="scan-grid">{scanResults.map((s,i)=>(
+            <div key={s.symbol} className="scan-card">
+              <div className="sc-top">
+                <div className="sc-rank">#{i+1}</div>
+                <div className="sc-info"><span className="sc-name">{s.name}</span><span className="sc-sym">{s.symbol.replace(".SR","")}</span></div>
+                <span className="sc-strength">{s.strength}</span>
+              </div>
+              <div className="sc-price">{s.price?.toFixed(2)} <small>ر.س</small></div>
+              <div className="sc-levels">
+                <div className="sc-lv grn">🎯 الهدف<span>{s.target}</span></div>
+                <div className="sc-lv red">🛑 الوقف<span>{s.stop}</span></div>
+              </div>
+              <div className="sc-conds">
+                <span className={s.conditions.c1?"cond-ok":"cond-no"}>RSI {s.rsi?.toFixed(0)}</span>
+                <span className={s.conditions.c2?"cond-ok":"cond-no"}>حجم ↑</span>
+                <span className={s.conditions.c3?"cond-ok":"cond-no"}>MACD ✓</span>
+                <span className={s.conditions.c4?"cond-ok":"cond-no"}>فوق SMA20</span>
+                <span className={s.conditions.c5?"cond-ok":"cond-no"}>اتجاه ↑</span>
+              </div>
+            </div>
+          ))}</div>
+        </>}
+      </div>}
+      {mainView==="market"&&<div className={`cgrid${sel?" hdet":""}`}>
         <div className="spanel">{view==="cards"?<div className="sgrid">{filtered.map(s=><StockCard key={s.symbol} stock={s} onSelect={setSel} selected={sel?.symbol===s.symbol} sigData={sigMap[s.symbol]}/>)}</div>:<Heatmap stocks={filtered}/>}</div>
 
         {sel&&<div className="dpanel">
@@ -324,7 +405,8 @@ export default function Home(){
             <div className="disc">⚠️ تنبيه: هذه أداة مساعدة وليست نصيحة استثمارية. استشر مستشاراً مالياً مرخصاً قبل اتخاذ أي قرار.</div>
           </>}
         </div>}
-      </div></main>
+      </div>}
+      </main>
 
       <footer className="ftr"><p>تصميم وتطوير <strong>فؤاد الرشيدي</strong> · محلل السوق السعودي · للأغراض التعليمية فقط</p></footer>
     </div>
@@ -434,6 +516,45 @@ export default function Home(){
       .aitem{display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;margin-bottom:4px;background:rgba(255,255,255,.02)}
       .ahigh{border-right:3px solid #FF1744}.amedium{border-right:3px solid #FFD740}
       .aicon{font-size:18px}.amsg{font-size:11px;color:rgba(255,255,255,.7);display:block}.atime{font-size:9px;color:rgba(255,255,255,.25)}
+
+
+      .maintabs{display:flex;gap:8px;padding:12px 28px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+      .mtb{background:none;border:none;color:rgba(255,255,255,.4);font-family:inherit;font-size:14px;font-weight:600;padding:10px 20px;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
+      .mtb.mact{color:#00E676;border-bottom-color:#00E676}
+
+      .scanner-wrap{padding:20px 0}
+      .scan-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:16px}
+      .scan-title{font-size:20px;font-weight:800;color:white;margin:0 0 6px}
+      .scan-sub{font-size:12px;color:rgba(255,255,255,.4);margin:0}
+      .scanbtn{background:linear-gradient(135deg,#00E676,#00BCD4);border:none;color:#000;font-family:inherit;font-size:14px;font-weight:800;padding:12px 28px;border-radius:12px;cursor:pointer;white-space:nowrap;transition:all .2s}
+      .scanbtn:disabled{opacity:.5;cursor:not-allowed}
+      .scanbtn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,230,118,.3)}
+
+      .scan-loading{text-align:center;padding:60px 20px}
+      .scan-spinner{width:48px;height:48px;border:3px solid rgba(0,230,118,.2);border-top-color:#00E676;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}
+      @keyframes spin{to{transform:rotate(360deg)}}
+      .scan-loading p{color:rgba(255,255,255,.5);font-size:14px}
+
+      .scan-summary{background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.2);border-radius:10px;padding:12px 16px;font-size:14px;font-weight:600;color:#00E676;margin-bottom:10px}
+      .scan-disclaimer{background:rgba(255,152,0,.06);border:1px solid rgba(255,152,0,.15);border-radius:10px;padding:10px 16px;font-size:11px;color:rgba(255,152,0,.8);margin-bottom:20px}
+
+      .scan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+      .scan-card{background:rgba(0,230,118,.04);border:1px solid rgba(0,230,118,.15);border-radius:14px;padding:16px;transition:all .2s}
+      .scan-card:hover{border-color:rgba(0,230,118,.35);transform:translateY(-2px)}
+      .sc-top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+      .sc-rank{width:28px;height:28px;background:rgba(0,230,118,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#00E676;flex-shrink:0}
+      .sc-info{flex:1}.sc-name{display:block;font-size:14px;font-weight:700;color:white}.sc-sym{font-family:'Space Mono',monospace;font-size:10px;color:rgba(255,255,255,.3)}
+      .sc-strength{font-size:12px;font-weight:700;white-space:nowrap}
+      .sc-price{font-family:'Space Mono',monospace;font-size:24px;font-weight:700;color:white;margin-bottom:12px}.sc-price small{font-size:12px;color:rgba(255,255,255,.3)}
+      .sc-levels{display:flex;gap:8px;margin-bottom:12px}
+      .sc-lv{flex:1;background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;font-size:10px;color:rgba(255,255,255,.4);display:flex;flex-direction:column;gap:4px}
+      .sc-lv span{font-family:'Space Mono',monospace;font-size:13px;font-weight:700}
+      .sc-lv.grn span{color:#00E676}.sc-lv.red span{color:#FF1744}
+      .sc-conds{display:flex;flex-wrap:wrap;gap:6px}
+      .cond-ok{background:rgba(0,230,118,.12);color:#00E676;border:1px solid rgba(0,230,118,.25);padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600}
+      .cond-no{background:rgba(255,255,255,.04);color:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.08);padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600;text-decoration:line-through}
+
+      @media(max-width:640px){.maintabs{padding:10px 14px 0}.scan-hdr{flex-direction:column}.scanbtn{width:100%}.scan-grid{grid-template-columns:1fr}}
 
       .ftr{text-align:center;padding:20px 28px;border-top:1px solid rgba(255,255,255,.03);margin-top:30px}.ftr p{font-size:10px;color:rgba(255,255,255,.2)}.ftr strong{color:rgba(0,230,118,.6)}
 
