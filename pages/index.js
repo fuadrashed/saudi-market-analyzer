@@ -12,30 +12,167 @@ const SAUDI_STOCKS = [
 const SECTORS = ["الكل","البنوك","الطاقة","البتروكيماويات","الاتصالات","تقنية المعلومات","الأغذية","التجزئة","التأمين","الأسمنت","التعدين","الصناعة","النقل","الزراعة","العقارات","صناديق الريت","الصحة","المرافق","الإعلام","التعليم","السياحة والترفيه","الخدمات المالية"];
 
 function calcSMA(d,p){if(d.length<p)return null;return d.slice(-p).reduce((s,v)=>s+v,0)/p}
-function calcEMA(d,p){if(d.length<p)return null;const k=2/(p+1);let e=d.slice(0,p).reduce((s,v)=>s+v,0)/p;for(let i=p;i<d.length;i++)e=d[i]*k+e*(1-k);return e}
-function calcRSI(c,p=14){if(c.length<p+1)return 50;let g=0,l=0;for(let i=c.length-p;i<c.length;i++){const d=c[i]-c[i-1];if(d>0)g+=d;else l-=d}if(l===0)return 100;return 100-100/(1+g/l)}
-function calcMACD(c){const e12=calcEMA(c,12),e26=calcEMA(c,26);if(!e12||!e26)return{macd:0,signal:0,histogram:0};const m=e12-e26;return{macd:m,signal:m*.8,histogram:m*.2}}
-function calcBollinger(c,p=20){if(c.length<p)return null;const s=calcSMA(c,p),std=Math.sqrt(c.slice(-p).reduce((a,v)=>a+Math.pow(v-s,2),0)/p);return{upper:s+2*std,middle:s,lower:s-2*std}}
-function calcStoch(h,l,c,p=14){if(c.length<p)return{k:50,d:50};const hh=Math.max(...h.slice(-p)),ll=Math.min(...l.slice(-p)),r=hh-ll||1;const k=((c[c.length-1]-ll)/r)*100;return{k,d:k*.9}}
-function calcATR(h,l,c,p=14){if(c.length<p+1)return 0;let s=0;for(let i=c.length-p;i<c.length;i++)s+=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1]));return s/p}
+
+function calcEMA(d,p){
+  if(d.length<p)return null;
+  const k=2/(p+1);
+  let e=d.slice(0,p).reduce((s,v)=>s+v,0)/p;
+  for(let i=p;i<d.length;i++) e=d[i]*k+e*(1-k);
+  return e;
+}
+
+function calcEMAFull(d,p){
+  // يرجع مصفوفة كاملة من EMA لحساب MACD Signal الحقيقي
+  if(d.length<p)return[];
+  const k=2/(p+1);
+  const result=[];
+  let e=d.slice(0,p).reduce((s,v)=>s+v,0)/p;
+  result.push(e);
+  for(let i=p;i<d.length;i++){e=d[i]*k+e*(1-k);result.push(e);}
+  return result;
+}
+
+function calcRSI(c,p=14){
+  // RSI حقيقي بطريقة Wilder's Smoothing
+  if(c.length<p+1)return 50;
+  let gains=0,losses=0;
+  for(let i=1;i<=p;i++){const d=c[i]-c[i-1];if(d>0)gains+=d;else losses-=d;}
+  let ag=gains/p, al=losses/p;
+  for(let i=p+1;i<c.length;i++){
+    const d=c[i]-c[i-1];
+    ag=(ag*(p-1)+(d>0?d:0))/p;
+    al=(al*(p-1)+(d<0?-d:0))/p;
+  }
+  if(al===0)return 100;
+  return 100-100/(1+ag/al);
+}
+
+function calcMACD(c){
+  // MACD حقيقي = EMA12 - EMA26، Signal = EMA9 من MACD
+  if(c.length<35)return{macd:0,signal:0,histogram:0};
+  const k12=2/13, k26=2/27, k9=2/10;
+  let e12=c.slice(0,12).reduce((s,v)=>s+v,0)/12;
+  let e26=c.slice(0,26).reduce((s,v)=>s+v,0)/26;
+  for(let i=12;i<26;i++) e12=c[i]*k12+e12*(1-k12);
+  const macdLine=[];
+  for(let i=26;i<c.length;i++){
+    e12=c[i]*k12+e12*(1-k12);
+    e26=c[i]*k26+e26*(1-k26);
+    macdLine.push(e12-e26);
+  }
+  if(macdLine.length<9)return{macd:macdLine[macdLine.length-1]||0,signal:0,histogram:0};
+  let sig=macdLine.slice(0,9).reduce((s,v)=>s+v,0)/9;
+  for(let i=9;i<macdLine.length;i++) sig=macdLine[i]*k9+sig*(1-k9);
+  const macd=macdLine[macdLine.length-1];
+  return{macd,signal:sig,histogram:macd-sig};
+}
+
+function calcBollinger(c,p=20){
+  if(c.length<p)return null;
+  const s=calcSMA(c,p);
+  const std=Math.sqrt(c.slice(-p).reduce((a,v)=>a+Math.pow(v-s,2),0)/p);
+  return{upper:s+2*std,middle:s,lower:s-2*std};
+}
+
+function calcStoch(h,l,c,p=14){
+  if(c.length<p)return{k:50,d:50};
+  const hh=Math.max(...h.slice(-p)),ll=Math.min(...l.slice(-p)),r=hh-ll||1;
+  const k=((c[c.length-1]-ll)/r)*100;
+  // %D = متوسط آخر 3 قيم لـ %K
+  const kVals=[];
+  for(let i=Math.max(0,c.length-p-3);i<c.length;i++){
+    const hh2=Math.max(...h.slice(Math.max(0,i-p+1),i+1));
+    const ll2=Math.min(...l.slice(Math.max(0,i-p+1),i+1));
+    kVals.push(((c[i]-ll2)/(hh2-ll2||1))*100);
+  }
+  const d=kVals.slice(-3).reduce((s,v)=>s+v,0)/Math.min(3,kVals.length);
+  return{k,d};
+}
+
+function calcATR(h,l,c,p=14){
+  if(c.length<p+1)return 0;
+  let s=0;
+  for(let i=c.length-p;i<c.length;i++)
+    s+=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1]));
+  return s/p;
+}
 
 function generateSignals(cd){
-  if(!cd||cd.length<15)return{signal:"حيادي",strength:3,signals:[],score:0,buySignals:0,sellSignals:0,neutralSignals:0,rsi:50,macdData:{macd:0},sma7:null,sma20:null};
+  if(!cd||cd.length<30)return{signal:"بيانات غير كافية",strength:3,signals:[],score:0,buySignals:0,sellSignals:0,neutralSignals:0,rsi:50,macdData:{macd:0,signal:0,histogram:0},sma20:null,sma50:null,sma200:null};
   const closes=cd.map(d=>d.close),highs=cd.map(d=>d.high),lows=cd.map(d=>d.low),vols=cd.map(d=>d.volume);
-  const price=closes[closes.length-1],sma7=calcSMA(closes,7),sma20=calcSMA(closes,Math.min(20,closes.length)),rsi=calcRSI(closes),macdData=calcMACD(closes),boll=calcBollinger(closes),stoch=calcStoch(highs,lows,closes),atr=calcATR(highs,lows,closes);
+  const price=closes[closes.length-1];
+  const sma20=calcSMA(closes,20);
+  const sma50=calcSMA(closes,50);
+  const sma200=calcSMA(closes,200);
+  const rsi=calcRSI(closes);
+  const macdData=calcMACD(closes);
+  const boll=calcBollinger(closes);
+  const stoch=calcStoch(highs,lows,closes);
+  const atr=calcATR(highs,lows,closes);
   let b=0,s=0,n=0;const sigs=[];
-  if(sma7&&sma20){if(sma7>sma20){b++;sigs.push({name:"تقاطع المتوسطات",type:"buy",detail:"SMA7 > SMA20 — صاعد"})}else{s++;sigs.push({name:"تقاطع المتوسطات",type:"sell",detail:"SMA7 < SMA20 — هابط"})}}
-  if(rsi<30){b+=2;sigs.push({name:"RSI تشبع بيعي",type:"buy",detail:`RSI = ${rsi.toFixed(1)}`})}else if(rsi>70){s+=2;sigs.push({name:"RSI تشبع شرائي",type:"sell",detail:`RSI = ${rsi.toFixed(1)}`})}else if(rsi<45){b++;sigs.push({name:"RSI مائل للشراء",type:"buy",detail:`RSI = ${rsi.toFixed(1)}`})}else if(rsi>55){s++;sigs.push({name:"RSI مائل للبيع",type:"sell",detail:`RSI = ${rsi.toFixed(1)}`})}else{n++;sigs.push({name:"RSI متوازن",type:"neutral",detail:`RSI = ${rsi.toFixed(1)}`})}
-  if(macdData.histogram>0){b++;sigs.push({name:"MACD إيجابي",type:"buy",detail:`${macdData.macd.toFixed(3)}`})}else{s++;sigs.push({name:"MACD سلبي",type:"sell",detail:`${macdData.macd.toFixed(3)}`})}
-  if(boll){if(price<=boll.lower){b+=2;sigs.push({name:"بولينجر — دعم",type:"buy",detail:"عند الحد السفلي"})}else if(price>=boll.upper){s+=2;sigs.push({name:"بولينجر — مقاومة",type:"sell",detail:"عند الحد العلوي"})}else{n++;sigs.push({name:"بولينجر — طبيعي",type:"neutral",detail:"داخل النطاق"})}}
-  if(stoch.k<20){b++;sigs.push({name:"ستوكاستك بيعي",type:"buy",detail:`%K = ${stoch.k.toFixed(1)}`})}else if(stoch.k>80){s++;sigs.push({name:"ستوكاستك شرائي",type:"sell",detail:`%K = ${stoch.k.toFixed(1)}`})}
-  const avgV=vols.slice(-14).reduce((a,v)=>a+v,0)/14;if(vols[vols.length-1]>avgV*1.5){const t=closes[closes.length-1]>closes[closes.length-2]?"buy":"sell";if(t==="buy")b++;else s++;sigs.push({name:"حجم تداول مرتفع",type:t,detail:`${(vols[vols.length-1]/1e6).toFixed(1)}M`})}
-  if(sma20){if(price>sma20*1.02){b++;sigs.push({name:"فوق المتوسط",type:"buy",detail:"اتجاه صاعد"})}else if(price<sma20*.98){s++;sigs.push({name:"تحت المتوسط",type:"sell",detail:"اتجاه هابط"})}}
+
+  // 1. تقاطع المتوسطات SMA20/50
+  if(sma20&&sma50){
+    if(sma20>sma50){b+=2;sigs.push({name:"تقاطع ذهبي SMA20/50",type:"buy",detail:"SMA20 > SMA50 — اتجاه صاعد"})}
+    else{s+=2;sigs.push({name:"تقاطع ميت SMA20/50",type:"sell",detail:"SMA20 < SMA50 — اتجاه هابط"})}
+  }
+
+  // 2. المتوسط 200 (اتجاه طويل الأمد)
+  if(sma200){
+    if(price>sma200){b+=2;sigs.push({name:"فوق المتوسط 200",type:"buy",detail:"السعر فوق SMA200 — صاعد بعيد المدى"})}
+    else{s+=2;sigs.push({name:"تحت المتوسط 200",type:"sell",detail:"السعر تحت SMA200 — هابط بعيد المدى"})}
+  }
+
+  // 3. RSI الحقيقي
+  if(rsi<30){b+=3;sigs.push({name:"RSI تشبع بيعي قوي",type:"buy",detail:`RSI = ${rsi.toFixed(1)} — فرصة شراء`})}
+  else if(rsi>70){s+=3;sigs.push({name:"RSI تشبع شرائي قوي",type:"sell",detail:`RSI = ${rsi.toFixed(1)} — فرصة بيع`})}
+  else if(rsi>=30&&rsi<45){b++;sigs.push({name:"RSI منطقة شراء",type:"buy",detail:`RSI = ${rsi.toFixed(1)}`})}
+  else if(rsi>55&&rsi<=70){s++;sigs.push({name:"RSI منطقة بيع",type:"sell",detail:`RSI = ${rsi.toFixed(1)}`})}
+  else{n++;sigs.push({name:"RSI محايد",type:"neutral",detail:`RSI = ${rsi.toFixed(1)}`})}
+
+  // 4. MACD الحقيقي
+  if(macdData.histogram>0&&macdData.macd>macdData.signal){
+    b+=2;sigs.push({name:"MACD تقاطع صاعد",type:"buy",detail:`MACD=${macdData.macd.toFixed(3)} > Signal=${macdData.signal.toFixed(3)}`})
+  } else if(macdData.histogram<0&&macdData.macd<macdData.signal){
+    s+=2;sigs.push({name:"MACD تقاطع هابط",type:"sell",detail:`MACD=${macdData.macd.toFixed(3)} < Signal=${macdData.signal.toFixed(3)}`})
+  } else {
+    n++;sigs.push({name:"MACD حيادي",type:"neutral",detail:`Histogram=${macdData.histogram.toFixed(3)}`})
+  }
+
+  // 5. بولينجر باندز
+  if(boll){
+    if(price<=boll.lower){b+=2;sigs.push({name:"بولينجر — عند الدعم",type:"buy",detail:`السعر ${price.toFixed(2)} عند الحد السفلي ${boll.lower.toFixed(2)}`})}
+    else if(price>=boll.upper){s+=2;sigs.push({name:"بولينجر — عند المقاومة",type:"sell",detail:`السعر ${price.toFixed(2)} عند الحد العلوي ${boll.upper.toFixed(2)}`})}
+    else{n++;sigs.push({name:"بولينجر — داخل النطاق",type:"neutral",detail:`نطاق: ${boll.lower.toFixed(2)} - ${boll.upper.toFixed(2)}`})}
+  }
+
+  // 6. ستوكاستك
+  if(stoch.k<20&&stoch.d<20){b+=2;sigs.push({name:"ستوكاستك تشبع بيعي",type:"buy",detail:`%K=${stoch.k.toFixed(1)} %D=${stoch.d.toFixed(1)}`})}
+  else if(stoch.k>80&&stoch.d>80){s+=2;sigs.push({name:"ستوكاستك تشبع شرائي",type:"sell",detail:`%K=${stoch.k.toFixed(1)} %D=${stoch.d.toFixed(1)}`})}
+
+  // 7. حجم التداول
+  const avgV=vols.slice(-20).reduce((a,v)=>a+v,0)/20;
+  if(vols[vols.length-1]>avgV*2){
+    const t=closes[closes.length-1]>closes[closes.length-2]?"buy":"sell";
+    if(t==="buy")b+=2;else s+=2;
+    sigs.push({name:"حجم تداول استثنائي",type:t,detail:`${(vols[vols.length-1]/1e6).toFixed(1)}M (ضعف المتوسط)`})
+  } else if(vols[vols.length-1]>avgV*1.5){
+    const t=closes[closes.length-1]>closes[closes.length-2]?"buy":"sell";
+    if(t==="buy")b++;else s++;
+    sigs.push({name:"حجم تداول مرتفع",type:t,detail:`${(vols[vols.length-1]/1e6).toFixed(1)}M`})
+  }
+
   const tot=b+s+n||1,score=((b-s)/tot)*100;
   let signal,strength;
-  if(score>40){signal="🟢 شراء قوي";strength=5}else if(score>15){signal="🟢 شراء";strength=4}else if(score>-15){signal="🟡 حيادي";strength=3}else if(score>-40){signal="🔴 بيع";strength=2}else{signal="🔴 بيع قوي";strength=1}
-  const support=Math.min(...lows.slice(-20)),resistance=Math.max(...highs.slice(-20));
-  return{signal,strength,signals:sigs,score,buySignals:b,sellSignals:s,neutralSignals:n,rsi,macdData,bollinger:boll,stoch,sma7,sma20,atr,support,resistance}
+  if(score>50){signal="🟢 شراء قوي";strength=5}
+  else if(score>20){signal="🟢 شراء";strength=4}
+  else if(score>-20){signal="🟡 حيادي";strength=3}
+  else if(score>-50){signal="🔴 بيع";strength=2}
+  else{signal="🔴 بيع قوي";strength=1}
+
+  const support=Math.min(...lows.slice(-50));
+  const resistance=Math.max(...highs.slice(-50));
+  return{signal,strength,signals:sigs,score,buySignals:b,sellSignals:s,neutralSignals:n,rsi,macdData,bollinger:boll,stoch,sma20,sma50,sma200,atr,support,resistance}
 }
 
 async function fetchStock(sym){try{const r=await fetch(`/api/stock?symbol=${sym}`);if(!r.ok)throw 0;return await r.json()}catch{return null}}
