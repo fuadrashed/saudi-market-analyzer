@@ -98,7 +98,7 @@ function calcATR(h,l,c,p=14){
 }
 
 function generateSignals(cd){
-  if(!cd||cd.length<30)return{signal:"بيانات غير كافية",strength:3,signals:[],score:0,buySignals:0,sellSignals:0,neutralSignals:0,rsi:50,macdData:{macd:0,signal:0,histogram:0},sma20:null,sma50:null,sma200:null};
+  if(!cd||cd.length<10)return{signal:"حيادي",strength:3,signals:[],score:0,buySignals:0,sellSignals:0,neutralSignals:0,rsi:50,macdData:{macd:0,signal:0,histogram:0},sma20:null,sma50:null,sma200:null};
   const closes=cd.map(d=>d.close),highs=cd.map(d=>d.high),lows=cd.map(d=>d.low),vols=cd.map(d=>d.volume);
   const price=closes[closes.length-1];
   const sma20=calcSMA(closes,20);
@@ -282,7 +282,7 @@ export default function Home(){
     const results=[];
     await Promise.allSettled(list.map(async s=>{
       try{
-        const r=await fetch(`/api/chart?symbol=${s.symbol}`);
+        const r=await fetch(`/api/chart?symbol=${s.symbol}&scanner=1`);
         if(!r.ok)return;
         const d=await r.json();
         const cd=d.chart||[];
@@ -299,13 +299,13 @@ export default function Home(){
         const avgVol=vols.slice(-20).reduce((a,v)=>a+v,0)/20;
         const lastVol=vols[vols.length-1];
         const atr=calcATR(highs,lows,closes);
-        const c1=rsi>=32&&rsi<=55;
-        const c2=lastVol>avgVol*1.3;
+        const c1=rsi>=25&&rsi<=60;
+        const c2=lastVol>avgVol*1.1;
         const c3=macd.histogram>0&&macd.macd>macd.signal;
         const c4=sma20&&price>sma20;
         const c5=sma20&&sma50&&sma20>sma50;
         const score=[c1,c2,c3,c4,c5].filter(Boolean).length;
-        if(score>=3){
+        if(score>=2){
           const target=(price*(1+0.015)).toFixed(2);
           const stop=(price*(1-0.008)).toFixed(2);
           results.push({...s,price,rsi,macdH:macd.histogram,vol:lastVol,avgVol,atr,score,conditions:{c1,c2,c3,c4,c5},target,stop,strength:score===5?"🔥 ممتاز":score===4?"⭐ قوي":"✅ جيد"});

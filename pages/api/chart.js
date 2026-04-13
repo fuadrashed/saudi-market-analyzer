@@ -5,8 +5,9 @@ export default async function handler(req, res) {
   const apiToken = process.env.EODHD_API_KEY || "";
 
   try {
-    // 300 يوم = كافي لـ MACD و RSI و بولينجر بدقة عالية
-    const fromDate = getDateDaysAgo(300);
+    // 90 يوم كافي للبطاقات، السكانر يطلب 300
+    const days = req.query.scanner === "1" ? 300 : 90;
+    const fromDate = getDateDaysAgo(days);
     const url = `https://eodhd.com/api/eod/${symbol}?api_token=${apiToken}&fmt=json&period=d&order=a&from=${fromDate}`;
     const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!response.ok) throw new Error(`EODHD error: ${response.status}`);
