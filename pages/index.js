@@ -318,7 +318,7 @@ export default function Home(){
   },[stocks]);
 
   const sigData=useMemo(()=>generateSignals(chartData),[chartData]);
-  const filtered=stocks.filter(s=>{const sm=sector==="الكل"||s.sector===sector;const qm=!search||s.name.includes(search)||s.nameEn.toLowerCase().includes(search.toLowerCase())||s.symbol.includes(search);const sf=sigFilter==="الكل"||(!sigMap[s.symbol]?sigFilter==="الكل":sigFilter==="شراء"?(sigMap[s.symbol]?.strength>=4):sigFilter==="حيادي"?(sigMap[s.symbol]?.strength===3):sigFilter==="بيع"?(sigMap[s.symbol]?.strength<=2):sigFilter==="صاعد"?(s.data?.changePercent>0):sigFilter==="هابط"?(s.data?.changePercent<0):true);return sm&&qm&&sf});
+  const filtered=stocks.filter(s=>{const sm=sector==="الكل"||s.sector===sector;const qm=!search||s.name.includes(search)||(s.nameEn||"").toLowerCase().includes(search.toLowerCase())||s.symbol.includes(search);const sf=sigFilter==="الكل"||(!sigMap[s.symbol]?sigFilter==="الكل":sigFilter==="شراء"?(sigMap[s.symbol]?.strength>=4):sigFilter==="حيادي"?(sigMap[s.symbol]?.strength===3):sigFilter==="بيع"?(sigMap[s.symbol]?.strength<=2):sigFilter==="صاعد"?(s.data?.changePercent>0):sigFilter==="هابط"?(s.data?.changePercent<0):true);return sm&&qm&&sf});
 
   return(
     <><Head><title>محلل السوق السعودي — تصميم فؤاد الرشيدي</title><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin=""/><link href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/></Head>
