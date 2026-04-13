@@ -1,301 +1,239 @@
-// API endpoint: /api/tickers
-// يجلب قائمة كل الأسهم السعودية المدرجة من EODHD مع أسمائها العربية
-
 export default async function handler(req, res) {
-  // Cache لمدة ساعة
   res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate");
-
-  const apiToken = process.env.EODHD_API_KEY;
-  if (!apiToken) {
-    return res.status(200).json({ stocks: FALLBACK_STOCKS, source: "fallback" });
-  }
-
-  try {
-    // جلب قائمة كل الأسهم في السوق السعودي SR
-    const url = `https://eodhd.com/api/exchange-symbol-list/SR?api_token=${apiToken}&fmt=json&type=common_stock`;
-    const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-
-    if (!response.ok) throw new Error(`EODHD error: ${response.status}`);
-    const data = await response.json();
-
-    if (!Array.isArray(data) || data.length === 0) throw new Error("Empty response");
-
-    // تحويل البيانات
-    const stocks = data
-      .filter(s => s.Code && s.Name && !s.Code.includes("-"))
-      .map(s => ({
-        symbol: `${s.Code}.SR`,
-        name: s.Name_AR || translateName(s.Name, s.Code) || s.Name,
-        nameEn: s.Name,
-        sector: mapSector(s.Sector || s.Industry || ""),
-        currency: s.Currency || "SAR",
-        exchange: "SR",
-        isin: s.Isin || null,
-      }))
-      .filter(s => s.symbol.match(/^\d{4}\.SR$/)) // فقط أرقام 4 خانات
-      .sort((a, b) => a.symbol.localeCompare(b.symbol));
-
-    // دمج مع القائمة الاحتياطية للأسماء العربية الصحيحة
-    const merged = mergWithArabicNames(stocks);
-
-    return res.status(200).json({ stocks: merged, source: "eodhd", total: merged.length });
-  } catch (error) {
-    console.error("Tickers API error:", error.message);
-    return res.status(200).json({ stocks: FALLBACK_STOCKS, source: "fallback", total: FALLBACK_STOCKS.length });
-  }
+  return res.status(200).json({ stocks: SAUDI_STOCKS, source: "official", total: SAUDI_STOCKS.length });
 }
 
-function mergWithArabicNames(eohdStocks) {
-  const arabicMap = {};
-  FALLBACK_STOCKS.forEach(s => { arabicMap[s.symbol] = s; });
-
-  return eohdStocks.map(s => {
-    const ar = arabicMap[s.symbol];
-    if (ar) {
-      return { ...s, name: ar.name, sector: ar.sector || s.sector };
-    }
-    return s;
-  });
-}
-
-function mapSector(sector) {
-  const map = {
-    "Financial Services": "الخدمات المالية",
-    "Banks": "البنوك", "Banking": "البنوك",
-    "Insurance": "التأمين",
-    "Basic Materials": "البتروكيماويات",
-    "Chemicals": "البتروكيماويات",
-    "Industrials": "الصناعة",
-    "Consumer Cyclical": "التجزئة",
-    "Consumer Defensive": "الأغذية",
-    "Healthcare": "الصحة", "Health Care": "الصحة",
-    "Technology": "تقنية المعلومات",
-    "Communication Services": "الاتصالات",
-    "Telecommunications": "الاتصالات",
-    "Energy": "الطاقة",
-    "Utilities": "المرافق",
-    "Real Estate": "العقارات",
-    "Real Estate Investment Trust": "صناديق الريت",
-    "REITs": "صناديق الريت",
-    "Agriculture": "الزراعة",
-    "Construction Materials": "الأسمنت",
-    "Building Materials": "الأسمنت",
-    "Consumer Services": "السياحة والترفيه",
-    "Education": "التعليم",
-    "Transportation": "النقل",
-    "Mining": "التعدين",
-    "Media": "الإعلام",
-  };
-  return map[sector] || sector || "متنوع";
-}
-
-function translateName(nameEn, code) {
-  // بعض الأسماء المعروفة
-  const known = {
-    "2222": "أرامكو السعودية",
-    "1120": "مصرف الراجحي",
-    "1180": "البنك الأهلي السعودي",
-    "7010": "الاتصالات السعودية",
-    "2010": "سابك",
-    "1211": "معادن",
-    "2280": "المراعي",
-    "4190": "جرير للتسويق",
-    "8010": "الشركة التعاونية للتأمين",
-  };
-  return known[code] || null;
-}
-
-// ======================================================
-// قائمة احتياطية كاملة - أسماء عربية صحيحة 100%
-// ======================================================
-const FALLBACK_STOCKS = [
-  // البنوك
-  { symbol: "1010.SR", name: "بنك الرياض", sector: "البنوك" },
-  { symbol: "1020.SR", name: "بنك الجزيرة", sector: "البنوك" },
-  { symbol: "1030.SR", name: "بنك الاستثمار السعودي", sector: "البنوك" },
-  { symbol: "1050.SR", name: "بنك فرنسا السعودي (BSF)", sector: "البنوك" },
-  { symbol: "1060.SR", name: "البنك السعودي البريطاني (ساب)", sector: "البنوك" },
-  { symbol: "1080.SR", name: "البنك العربي الوطني", sector: "البنوك" },
-  { symbol: "1111.SR", name: "مجموعة تداول السعودية", sector: "البنوك" },
-  { symbol: "1120.SR", name: "مصرف الراجحي", sector: "البنوك" },
-  { symbol: "1140.SR", name: "بنك البلاد", sector: "البنوك" },
-  { symbol: "1150.SR", name: "بنك الإنماء", sector: "البنوك" },
-  { symbol: "1180.SR", name: "البنك الأهلي السعودي (SNB)", sector: "البنوك" },
-  { symbol: "1182.SR", name: "أملاك للتمويل", sector: "البنوك" },
-  { symbol: "1183.SR", name: "سهل للتمويل", sector: "البنوك" },
+const SAUDI_STOCKS = [
   // الطاقة
   { symbol: "2222.SR", name: "أرامكو السعودية", sector: "الطاقة" },
+  { symbol: "4030.SR", name: "البحري", sector: "الطاقة" },
+  { symbol: "4200.SR", name: "الدريس", sector: "الطاقة" },
+  { symbol: "2030.SR", name: "المصافي", sector: "الطاقة" },
   { symbol: "2380.SR", name: "بترو رابغ", sector: "الطاقة" },
-  { symbol: "2081.SR", name: "أكوا باور", sector: "الطاقة" },
-  { symbol: "4200.SR", name: "الدريس للبترول والنقل", sector: "الطاقة" },
-  { symbol: "2080.SR", name: "الغاز والتصنيع الأهلية", sector: "الطاقة" },
-  { symbol: "2120.SR", name: "المصافي السعودية", sector: "الطاقة" },
-  // البتروكيماويات
-  { symbol: "2001.SR", name: "كيمانول", sector: "البتروكيماويات" },
-  { symbol: "2010.SR", name: "سابك", sector: "البتروكيماويات" },
-  { symbol: "2020.SR", name: "سابك للمغذيات الزراعية", sector: "البتروكيماويات" },
-  { symbol: "2060.SR", name: "التصنيع الوطنية (تاسنيع)", sector: "البتروكيماويات" },
-  { symbol: "2090.SR", name: "نماء للكيماويات", sector: "البتروكيماويات" },
-  { symbol: "2110.SR", name: "سبكيم العالمية", sector: "البتروكيماويات" },
-  { symbol: "2150.SR", name: "ميبكو", sector: "البتروكيماويات" },
-  { symbol: "2160.SR", name: "بتروكيم", sector: "البتروكيماويات" },
-  { symbol: "2230.SR", name: "المجموعة السعودية للاستثمار الصناعي", sector: "البتروكيماويات" },
-  { symbol: "2250.SR", name: "السعودية للاستثمار الصناعي والأعمال (SIG)", sector: "البتروكيماويات" },
-  { symbol: "2290.SR", name: "ينساب", sector: "البتروكيماويات" },
-  { symbol: "2300.SR", name: "سابك للصناعات الأساسية", sector: "البتروكيماويات" },
-  { symbol: "2310.SR", name: "سبكيم", sector: "البتروكيماويات" },
-  { symbol: "2330.SR", name: "أدفانسد بتروكيميكال", sector: "البتروكيماويات" },
-  { symbol: "2350.SR", name: "كيان السعودية للبتروكيماويات", sector: "البتروكيماويات" },
-  { symbol: "4361.SR", name: "صدارة للكيماويات", sector: "البتروكيماويات" },
-  { symbol: "2040.SR", name: "الخزف السعودي", sector: "البتروكيماويات" },
-  // الاتصالات
-  { symbol: "7010.SR", name: "الاتصالات السعودية (STC)", sector: "الاتصالات" },
-  { symbol: "7020.SR", name: "موبايلي (اتحاد اتصالات)", sector: "الاتصالات" },
-  { symbol: "7030.SR", name: "زين السعودية", sector: "الاتصالات" },
-  { symbol: "7040.SR", name: "عذيب للاتصالات", sector: "الاتصالات" },
-  // تقنية المعلومات
-  { symbol: "7201.SR", name: "علم", sector: "تقنية المعلومات" },
-  { symbol: "7202.SR", name: "حلول (Solutions by STC)", sector: "تقنية المعلومات" },
-  { symbol: "7203.SR", name: "الشركة العربية للتقنية", sector: "تقنية المعلومات" },
-  // الأغذية
-  { symbol: "2050.SR", name: "مجموعة صافولا", sector: "الأغذية" },
-  { symbol: "2270.SR", name: "سدافكو", sector: "الأغذية" },
-  { symbol: "2280.SR", name: "المراعي", sector: "الأغذية" },
-  { symbol: "2281.SR", name: "تنمية للأغذية", sector: "الأغذية" },
-  { symbol: "2282.SR", name: "جدوى وأبعاد للخدمات الغذائية", sector: "الأغذية" },
-  { symbol: "6001.SR", name: "حلواني إخوان", sector: "الأغذية" },
-  { symbol: "6002.SR", name: "هرفي للأغذية", sector: "الأغذية" },
-  { symbol: "6004.SR", name: "خدمات الطيران والأغذية (SACA)", sector: "الأغذية" },
-  { symbol: "6014.SR", name: "المطاحن الأولى", sector: "الأغذية" },
-  { symbol: "6015.SR", name: "المطاحن الثانية", sector: "الأغذية" },
-  { symbol: "6016.SR", name: "المطاحن الثالثة", sector: "الأغذية" },
-  { symbol: "6090.SR", name: "جاكو للإنتاج الحيواني", sector: "الأغذية" },
-  { symbol: "4220.SR", name: "مجموعة الرومانسية للمطاعم", sector: "الأغذية" },
-  { symbol: "4222.SR", name: "هرفي للخدمات الغذائية", sector: "الأغذية" },
-  // التجزئة
-  { symbol: "4001.SR", name: "عبداللطيف جميل للصناعة والتجارة", sector: "التجزئة" },
-  { symbol: "4003.SR", name: "إكسترا (United Electronics)", sector: "التجزئة" },
-  { symbol: "4008.SR", name: "مجموعة الحكير للسياحة والتجارة", sector: "التجزئة" },
-  { symbol: "4014.SR", name: "سينومي للمراكز التجارية", sector: "التجزئة" },
-  { symbol: "4050.SR", name: "ساسكو", sector: "التجزئة" },
-  { symbol: "4140.SR", name: "أبناء عبدالعزيز العجلان (العجلان)", sector: "التجزئة" },
-  { symbol: "4160.SR", name: "ثمار الجزيرة", sector: "التجزئة" },
-  { symbol: "4165.SR", name: "لازوردي للمجوهرات", sector: "التجزئة" },
-  { symbol: "4180.SR", name: "مجموعة فتيحي", sector: "التجزئة" },
-  { symbol: "4190.SR", name: "مجموعة جرير للتسويق", sector: "التجزئة" },
-  { symbol: "4240.SR", name: "سينومي ريتيل", sector: "التجزئة" },
-  { symbol: "4250.SR", name: "عسير للتجارة والسياحة", sector: "التجزئة" },
-  // التأمين
-  { symbol: "4015.SR", name: "بوبا العربية للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8010.SR", name: "الشركة التعاونية للتأمين (تعاونية)", sector: "التأمين" },
-  { symbol: "8020.SR", name: "ملاذ للتأمين وإعادة التأمين", sector: "التأمين" },
-  { symbol: "8030.SR", name: "ميدغلف للتأمين", sector: "التأمين" },
-  { symbol: "8040.SR", name: "أليانز السعودي الفرنسي للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8050.SR", name: "سلامة للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8060.SR", name: "ولاء للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8070.SR", name: "إعادة التأمين السعودية", sector: "التأمين" },
-  { symbol: "8080.SR", name: "سهل للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8100.SR", name: "الوطنية للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8110.SR", name: "الاتحاد للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8120.SR", name: "الاتحاد الخليجي للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8130.SR", name: "بروج للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8150.SR", name: "تكافل الراجحي", sector: "التأمين" },
-  { symbol: "8160.SR", name: "الخليج للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8170.SR", name: "أمانة للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8180.SR", name: "المتحدة للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8190.SR", name: "ريم للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8200.SR", name: "الدرع العربي للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8210.SR", name: "الأولى للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8230.SR", name: "أسيج للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8240.SR", name: "تكافل الراجحي للتأمين", sector: "التأمين" },
-  { symbol: "8270.SR", name: "ساب تكافل", sector: "التأمين" },
-  { symbol: "8300.SR", name: "أبوظبي الوطني للتأمين - فرع السعودية", sector: "التأمين" },
-  { symbol: "8310.SR", name: "إنما للتأمين التعاوني", sector: "التأمين" },
-  { symbol: "8311.SR", name: "بوبا العربية", sector: "التأمين" },
-  // الأسمنت ومواد البناء
-  { symbol: "3002.SR", name: "سيكو للأسمنت", sector: "الأسمنت" },
-  { symbol: "3005.SR", name: "أسمنت الجوف", sector: "الأسمنت" },
-  { symbol: "3007.SR", name: "أسمنت الرياض", sector: "الأسمنت" },
-  { symbol: "3009.SR", name: "أسمنت تبوك", sector: "الأسمنت" },
-  { symbol: "3010.SR", name: "الأسمنت العربية", sector: "الأسمنت" },
-  { symbol: "3020.SR", name: "أسمنت اليمامة", sector: "الأسمنت" },
-  { symbol: "3030.SR", name: "الأسمنت السعودية", sector: "الأسمنت" },
-  { symbol: "3040.SR", name: "أسمنت القصيم", sector: "الأسمنت" },
-  { symbol: "3050.SR", name: "أسمنت الجنوب", sector: "الأسمنت" },
-  { symbol: "3060.SR", name: "أسمنت ينبع", sector: "الأسمنت" },
-  { symbol: "3080.SR", name: "أسمنت الشرقية", sector: "الأسمنت" },
-  { symbol: "3090.SR", name: "أسمنت المدينة", sector: "الأسمنت" },
-  { symbol: "3091.SR", name: "أسمنت المنطقة الشمالية", sector: "الأسمنت" },
-  { symbol: "3093.SR", name: "أسمنت نجران", sector: "الأسمنت" },
-  // الصناعة والتصنيع
-  { symbol: "1201.SR", name: "تكوين للصناعات المتقدمة", sector: "الصناعة" },
-  { symbol: "1202.SR", name: "مبكو", sector: "الصناعة" },
-  { symbol: "1211.SR", name: "معادن (التعدين السعودية)", sector: "التعدين" },
-  { symbol: "1212.SR", name: "أسترا الصناعية", sector: "الصناعة" },
-  { symbol: "1213.SR", name: "نسيج", sector: "الصناعة" },
-  { symbol: "1214.SR", name: "مجموعة شاكر", sector: "الصناعة" },
-  { symbol: "1301.SR", name: "أسلاك الكوابل السعودية", sector: "الصناعة" },
-  { symbol: "1302.SR", name: "بوان", sector: "الصناعة" },
-  { symbol: "1303.SR", name: "الصناعات الكهربائية السعودية", sector: "الصناعة" },
-  { symbol: "1304.SR", name: "اليمامة للحديد والصلب", sector: "الصناعة" },
-  { symbol: "1320.SR", name: "الأنابيب السعودية", sector: "الصناعة" },
-  { symbol: "1321.SR", name: "أنابيب الشرق", sector: "الصناعة" },
-  { symbol: "1322.SR", name: "أماك للمنتجات المعدنية", sector: "الصناعة" },
-  { symbol: "1820.SR", name: "بان", sector: "الصناعة" },
+  { symbol: "2381.SR", name: "الحفر العربية", sector: "الطاقة" },
+  // المواد الأساسية
+  { symbol: "3092.SR", name: "أسمنت الرياض", sector: "المواد الأساسية" },
+  { symbol: "1320.SR", name: "أنابيب السعودية", sector: "المواد الأساسية" },
+  { symbol: "1321.SR", name: "أنابيب الشرق", sector: "المواد الأساسية" },
+  { symbol: "2300.SR", name: "صناعة الورق", sector: "المواد الأساسية" },
+  { symbol: "2010.SR", name: "سابك", sector: "المواد الأساسية" },
+  { symbol: "2200.SR", name: "أنابيب", sector: "المواد الأساسية" },
+  { symbol: "2330.SR", name: "المتقدمة", sector: "المواد الأساسية" },
+  { symbol: "2220.SR", name: "معدنية", sector: "المواد الأساسية" },
+  { symbol: "2002.SR", name: "بتروكيم", sector: "المواد الأساسية" },
+  { symbol: "2250.SR", name: "المجموعة السعودية", sector: "المواد الأساسية" },
+  { symbol: "3091.SR", name: "أسمنت الجوف", sector: "المواد الأساسية" },
+  { symbol: "3040.SR", name: "أسمنت القصيم", sector: "المواد الأساسية" },
+  { symbol: "3003.SR", name: "أسمنت المدينة", sector: "المواد الأساسية" },
+  { symbol: "3050.SR", name: "أسمنت الجنوب", sector: "المواد الأساسية" },
+  { symbol: "3080.SR", name: "أسمنت الشرقية", sector: "المواد الأساسية" },
+  { symbol: "3004.SR", name: "أسمنت الشمالية", sector: "المواد الأساسية" },
+  { symbol: "3020.SR", name: "أسمنت اليمامة", sector: "المواد الأساسية" },
+  { symbol: "3005.SR", name: "إسمنت أم القرى", sector: "المواد الأساسية" },
+  { symbol: "3090.SR", name: "أسمنت تبوك", sector: "المواد الأساسية" },
+  { symbol: "3001.SR", name: "أسمنت حائل", sector: "المواد الأساسية" },
+  { symbol: "3002.SR", name: "أسمنت نجران", sector: "المواد الأساسية" },
+  { symbol: "3060.SR", name: "أسمنت ينبع", sector: "المواد الأساسية" },
+  { symbol: "1301.SR", name: "أسلاك", sector: "المواد الأساسية" },
+  { symbol: "2020.SR", name: "سافكو", sector: "المواد الأساسية" },
+  { symbol: "3030.SR", name: "أسمنت السعودية", sector: "المواد الأساسية" },
+  { symbol: "3010.SR", name: "أسمنت العربية", sector: "المواد الأساسية" },
+  { symbol: "2060.SR", name: "التصنيع", sector: "المواد الأساسية" },
+  { symbol: "1211.SR", name: "معادن", sector: "المواد الأساسية" },
+  { symbol: "2090.SR", name: "جبسكو", sector: "المواد الأساسية" },
+  { symbol: "2240.SR", name: "الزامل للصناعة", sector: "المواد الأساسية" },
+  { symbol: "1202.SR", name: "مبكو", sector: "المواد الأساسية" },
+  { symbol: "2310.SR", name: "سبكيم العالمية", sector: "المواد الأساسية" },
+  { symbol: "2150.SR", name: "زجاج", sector: "المواد الأساسية" },
+  { symbol: "1210.SR", name: "بي سي آي", sector: "المواد الأساسية" },
+  { symbol: "3008.SR", name: "الكثيري", sector: "المواد الأساسية" },
+  { symbol: "2170.SR", name: "اللجين", sector: "المواد الأساسية" },
+  { symbol: "1304.SR", name: "اليمامة للحديد", sector: "المواد الأساسية" },
+  { symbol: "2180.SR", name: "فيبكو", sector: "المواد الأساسية" },
+  { symbol: "1201.SR", name: "تكوين", sector: "المواد الأساسية" },
+  { symbol: "3007.SR", name: "الواحة", sector: "المواد الأساسية" },
+  { symbol: "2350.SR", name: "كيان السعودية", sector: "المواد الأساسية" },
+  { symbol: "2001.SR", name: "كيمانول", sector: "المواد الأساسية" },
+  { symbol: "2210.SR", name: "نماء للكيماويات", sector: "المواد الأساسية" },
+  { symbol: "2290.SR", name: "ينساب", sector: "المواد الأساسية" },
+  // السلع الرأسمالية
+  { symbol: "2360.SR", name: "الفخارية", sector: "السلع الرأسمالية" },
+  { symbol: "4140.SR", name: "صادرات", sector: "السلع الرأسمالية" },
+  { symbol: "1330.SR", name: "الخضري", sector: "السلع الرأسمالية" },
+  { symbol: "2160.SR", name: "أميانتيت", sector: "السلع الرأسمالية" },
+  { symbol: "2140.SR", name: "أيان", sector: "السلع الرأسمالية" },
+  { symbol: "2320.SR", name: "البابطين", sector: "السلع الرأسمالية" },
+  { symbol: "2040.SR", name: "الخزف السعودي", sector: "السلع الرأسمالية" },
+  { symbol: "2370.SR", name: "مسك", sector: "السلع الرأسمالية" },
+  { symbol: "1303.SR", name: "الصناعات الكهربائية", sector: "السلع الرأسمالية" },
+  { symbol: "4141.SR", name: "العمران", sector: "السلع الرأسمالية" },
+  { symbol: "2110.SR", name: "الكابلات السعودية", sector: "السلع الرأسمالية" },
+  { symbol: "1302.SR", name: "بوان", sector: "السلع الرأسمالية" },
+  { symbol: "1212.SR", name: "أسترا الصناعية", sector: "السلع الرأسمالية" },
+  // الخدمات التجارية والمهنية
+  { symbol: "4270.SR", name: "طباعة وتغليف", sector: "الخدمات التجارية" },
+  { symbol: "6004.SR", name: "التموين", sector: "الخدمات التجارية" },
+  { symbol: "1831.SR", name: "مهارة", sector: "الخدمات التجارية" },
+  { symbol: "1832.SR", name: "الصمعاني", sector: "الخدمات التجارية" },
   // النقل
-  { symbol: "4030.SR", name: "الشركة الوطنية للنقل البحري (البحري)", sector: "النقل" },
+  { symbol: "4031.SR", name: "الخدمات الأرضية", sector: "النقل" },
+  { symbol: "2190.SR", name: "سيسكو", sector: "النقل" },
   { symbol: "4040.SR", name: "سابتكو", sector: "النقل" },
+  { symbol: "4260.SR", name: "بدجت السعودية", sector: "النقل" },
+  { symbol: "4261.SR", name: "ذيب", sector: "النقل" },
   { symbol: "4110.SR", name: "باتك", sector: "النقل" },
-  { symbol: "4166.SR", name: "مبرد للنقل", sector: "النقل" },
-  { symbol: "4261.SR", name: "بدجت السعودية لتأجير السيارات", sector: "النقل" },
-  { symbol: "4334.SR", name: "الخدمات الأرضية السعودية", sector: "النقل" },
-  // الزراعة
-  { symbol: "6010.SR", name: "نادك (التنمية الزراعية الوطنية)", sector: "الزراعة" },
-  { symbol: "6020.SR", name: "الجوف للتنمية الزراعية (جادكو)", sector: "الزراعة" },
-  { symbol: "6050.SR", name: "الوطنية لتجارة الأسماك (NFPC)", sector: "الزراعة" },
-  { symbol: "6060.SR", name: "الشرقية للتنمية والاستثمار", sector: "الزراعة" },
-  { symbol: "6070.SR", name: "الجوف للتنمية الزراعية", sector: "الزراعة" },
-  // الصحة
-  { symbol: "2070.SR", name: "الشركة السعودية للصناعات الدوائية (سبيماكو)", sector: "الصحة" },
-  { symbol: "4002.SR", name: "مستشفيات المواساة", sector: "الصحة" },
-  { symbol: "4004.SR", name: "مجموعة دله الصحية", sector: "الصحة" },
-  { symbol: "4005.SR", name: "رعاية لخدمات الصحة", sector: "الصحة" },
-  { symbol: "4013.SR", name: "مجموعة مستشفيات سليمان الحبيب الطبية", sector: "الصحة" },
-  { symbol: "4150.SR", name: "الحمادي للرعاية الصحية", sector: "الصحة" },
-  { symbol: "4230.SR", name: "الشرق الأوسط للرعاية الصحية (MEAHCO)", sector: "الصحة" },
-  // المرافق
-  { symbol: "5110.SR", name: "الشركة السعودية للكهرباء", sector: "المرافق" },
-  { symbol: "2082.SR", name: "الشركة السعودية للكهرباء (SEC)", sector: "المرافق" },
-  // العقارات
-  { symbol: "4020.SR", name: "الشركة العقارية السعودية (SRECO)", sector: "العقارات" },
-  { symbol: "4300.SR", name: "دار الأركان للتطوير العقاري", sector: "العقارات" },
-  { symbol: "4310.SR", name: "مجموعة مكة للإنشاء والتعمير (MACC)", sector: "العقارات" },
-  { symbol: "4320.SR", name: "الأندلس العقارية", sector: "العقارات" },
-  { symbol: "4321.SR", name: "شركة جبل عمر للتطوير", sector: "العقارات" },
-  { symbol: "4360.SR", name: "إيوان للتطوير والاستثمار العقاري", sector: "العقارات" },
+  // السلع طويلة الأجل
+  { symbol: "2130.SR", name: "صدق", sector: "السلع طويلة الأجل" },
+  { symbol: "2340.SR", name: "العبداللطيف", sector: "السلع طويلة الأجل" },
+  { symbol: "4012.SR", name: "الأصيل", sector: "السلع طويلة الأجل" },
+  { symbol: "4011.SR", name: "لازوردي", sector: "السلع طويلة الأجل" },
+  { symbol: "1213.SR", name: "نسيج", sector: "السلع طويلة الأجل" },
+  { symbol: "4180.SR", name: "مجموعة فتيحي", sector: "السلع طويلة الأجل" },
+  // الخدمات الاستهلاكية
+  { symbol: "4291.SR", name: "الوطنية للتعليم", sector: "الخدمات الاستهلاكية" },
+  { symbol: "4290.SR", name: "الخليج للتدريب", sector: "الخدمات الاستهلاكية" },
+  { symbol: "4170.SR", name: "شمس", sector: "الخدمات الاستهلاكية" },
+  { symbol: "4010.SR", name: "دور", sector: "الخدمات الاستهلاكية" },
+  { symbol: "6012.SR", name: "ريدان", sector: "الخدمات الاستهلاكية" },
+  { symbol: "6013.SR", name: "التطويرية الغذائية", sector: "الخدمات الاستهلاكية" },
+  { symbol: "4292.SR", name: "عطاء", sector: "الخدمات الاستهلاكية" },
+  { symbol: "1830.SR", name: "وقت اللياقة", sector: "الخدمات الاستهلاكية" },
+  { symbol: "6002.SR", name: "هرفي للأغذية", sector: "الخدمات الاستهلاكية" },
+  { symbol: "1810.SR", name: "سيرا", sector: "الخدمات الاستهلاكية" },
+  { symbol: "1820.SR", name: "مجموعة الحكير", sector: "الخدمات الاستهلاكية" },
+  // الإعلام والترفيه
+  { symbol: "4210.SR", name: "الأبحاث والتسويق", sector: "الإعلام والترفيه" },
+  { symbol: "4070.SR", name: "تهامة", sector: "الإعلام والترفيه" },
+  // تجزئة السلع الكمالية
+  { symbol: "4050.SR", name: "ساسكو", sector: "التجزئة" },
+  { symbol: "4008.SR", name: "ساكو", sector: "التجزئة" },
+  { symbol: "4003.SR", name: "إكسترا", sector: "التجزئة" },
+  { symbol: "1214.SR", name: "شاكر", sector: "التجزئة" },
+  { symbol: "4051.SR", name: "باعظيم", sector: "التجزئة" },
+  { symbol: "4190.SR", name: "جرير", sector: "التجزئة" },
+  { symbol: "4191.SR", name: "أبو معطي", sector: "التجزئة" },
+  { symbol: "4240.SR", name: "الحكير", sector: "التجزئة" },
+  // تجزئة الأغذية
+  { symbol: "4006.SR", name: "أسواق المزرعة", sector: "تجزئة الأغذية" },
+  { symbol: "4160.SR", name: "ثمار", sector: "تجزئة الأغذية" },
+  { symbol: "4001.SR", name: "أسواق عبدالله العثيم", sector: "تجزئة الأغذية" },
+  { symbol: "4161.SR", name: "بن داود", sector: "تجزئة الأغذية" },
+  { symbol: "4061.SR", name: "أنعام القابضة", sector: "تجزئة الأغذية" },
+  // إنتاج الأغذية
+  { symbol: "6050.SR", name: "الأسماك", sector: "إنتاج الأغذية" },
+  { symbol: "2270.SR", name: "سدافكو", sector: "إنتاج الأغذية" },
+  { symbol: "6010.SR", name: "نادك", sector: "إنتاج الأغذية" },
+  { symbol: "6070.SR", name: "الجوف", sector: "إنتاج الأغذية" },
+  { symbol: "6060.SR", name: "الشرقية للتنمية", sector: "إنتاج الأغذية" },
+  { symbol: "6020.SR", name: "جاكو", sector: "إنتاج الأغذية" },
+  { symbol: "2280.SR", name: "المراعي", sector: "إنتاج الأغذية" },
+  { symbol: "6040.SR", name: "تبوك الزراعية", sector: "إنتاج الأغذية" },
+  { symbol: "6090.SR", name: "جازادكو", sector: "إنتاج الأغذية" },
+  { symbol: "6001.SR", name: "حلواني إخوان", sector: "إنتاج الأغذية" },
+  { symbol: "2100.SR", name: "وفرة", sector: "إنتاج الأغذية" },
+  { symbol: "2050.SR", name: "مجموعة صافولا", sector: "إنتاج الأغذية" },
+  { symbol: "2281.SR", name: "تنمية", sector: "إنتاج الأغذية" },
+  // الرعاية الصحية
+  { symbol: "2230.SR", name: "الكيميائية", sector: "الرعاية الصحية" },
+  { symbol: "4005.SR", name: "رعاية", sector: "الرعاية الصحية" },
+  { symbol: "4007.SR", name: "الحمادي", sector: "الرعاية الصحية" },
+  { symbol: "4009.SR", name: "المستشفى السعودي الألماني", sector: "الرعاية الصحية" },
+  { symbol: "4002.SR", name: "المواساة", sector: "الرعاية الصحية" },
+  { symbol: "4004.SR", name: "دله الصحية", sector: "الرعاية الصحية" },
+  { symbol: "4013.SR", name: "سليمان الحبيب", sector: "الرعاية الصحية" },
+  { symbol: "2070.SR", name: "الدوائية", sector: "الأدوية" },
+  // البنوك
+  { symbol: "1180.SR", name: "الأهلي", sector: "البنوك" },
+  { symbol: "1060.SR", name: "ساب", sector: "البنوك" },
+  { symbol: "1050.SR", name: "السعودي الفرنسي", sector: "البنوك" },
+  { symbol: "1030.SR", name: "الإستثمار", sector: "البنوك" },
+  { symbol: "1080.SR", name: "العربي", sector: "البنوك" },
+  { symbol: "1140.SR", name: "البلاد", sector: "البنوك" },
+  { symbol: "1020.SR", name: "الجزيرة", sector: "البنوك" },
+  { symbol: "1010.SR", name: "الرياض", sector: "البنوك" },
+  { symbol: "1182.SR", name: "أملاك", sector: "البنوك" },
+  { symbol: "1150.SR", name: "الإنماء", sector: "البنوك" },
+  { symbol: "1120.SR", name: "الراجحي", sector: "البنوك" },
+  { symbol: "1183.SR", name: "سهل", sector: "البنوك" },
+  // الاستثمار والتمويل
+  { symbol: "1111.SR", name: "تداول السعودية", sector: "الاستثمار والتمويل" },
+  { symbol: "2120.SR", name: "متطورة", sector: "الاستثمار والتمويل" },
+  { symbol: "4130.SR", name: "الباحة", sector: "الاستثمار والتمويل" },
+  { symbol: "4280.SR", name: "المملكة", sector: "الاستثمار والتمويل" },
+  { symbol: "4080.SR", name: "سناد القابضة", sector: "الاستثمار والتمويل" },
+  { symbol: "4081.SR", name: "النايفات", sector: "الاستثمار والتمويل" },
+  // التأمين
+  { symbol: "8010.SR", name: "التعاونية", sector: "التأمين" },
+  { symbol: "8260.SR", name: "الخليجية العامة", sector: "التأمين" },
+  { symbol: "8110.SR", name: "وفا للتأمين", sector: "التأمين" },
+  { symbol: "8200.SR", name: "الإعادة السعودية", sector: "التأمين" },
+  { symbol: "8280.SR", name: "العالمية للتأمين", sector: "التأمين" },
+  { symbol: "8100.SR", name: "سايكو", sector: "التأمين" },
+  { symbol: "8190.SR", name: "المتحدة للتأمين", sector: "التأمين" },
+  { symbol: "8300.SR", name: "الوطنية للتأمين", sector: "التأمين" },
+  { symbol: "8150.SR", name: "أسيج", sector: "التأمين" },
+  { symbol: "8250.SR", name: "اكسا التعاونية", sector: "التأمين" },
+  { symbol: "8040.SR", name: "أليانز إس إف", sector: "التأمين" },
+  { symbol: "8310.SR", name: "أمانة للتأمين", sector: "التأمين" },
+  { symbol: "8120.SR", name: "اتحاد الخليج", sector: "التأمين" },
+  { symbol: "8130.SR", name: "الأهلي للتكافل", sector: "التأمين" },
+  { symbol: "8312.SR", name: "الإنماء طوكيو م", sector: "التأمين" },
+  { symbol: "8170.SR", name: "الاتحاد للتأمين", sector: "التأمين" },
+  { symbol: "8160.SR", name: "التأمين العربية", sector: "التأمين" },
+  { symbol: "8012.SR", name: "جزيرة تكافل", sector: "التأمين" },
+  { symbol: "8070.SR", name: "الدرع العربي", sector: "التأمين" },
+  { symbol: "8230.SR", name: "تكافل الراجحي", sector: "التأمين" },
+  { symbol: "8180.SR", name: "الصقر للتأمين", sector: "التأمين" },
+  { symbol: "8030.SR", name: "ميدغلف للتأمين", sector: "التأمين" },
+  { symbol: "8270.SR", name: "بروج للتأمين", sector: "التأمين" },
+  { symbol: "8210.SR", name: "بوبا العربية", sector: "التأمين" },
+  { symbol: "8240.SR", name: "تشب", sector: "التأمين" },
+  { symbol: "8050.SR", name: "سلامة", sector: "التأمين" },
+  { symbol: "8290.SR", name: "سوليدرتي تكافل", sector: "التأمين" },
+  { symbol: "8311.SR", name: "عناية", sector: "التأمين" },
+  { symbol: "8020.SR", name: "ملاذ للتأمين", sector: "التأمين" },
+  { symbol: "8060.SR", name: "ولاء", sector: "التأمين" },
+  // تقنية المعلومات
+  { symbol: "7200.SR", name: "ام آي اس", sector: "تقنية المعلومات" },
+  { symbol: "7201.SR", name: "بحر العرب", sector: "تقنية المعلومات" },
+  // الاتصالات
+  { symbol: "7020.SR", name: "إتحاد إتصالات", sector: "الاتصالات" },
+  { symbol: "7040.SR", name: "عذيب للإتصالات", sector: "الاتصالات" },
+  { symbol: "7010.SR", name: "اس تي سي", sector: "الاتصالات" },
+  { symbol: "7030.SR", name: "زين السعودية", sector: "الاتصالات" },
+  // المرافق العامة
+  { symbol: "5110.SR", name: "كهرباء السعودية", sector: "المرافق العامة" },
+  { symbol: "2080.SR", name: "الغاز", sector: "المرافق العامة" },
+  { symbol: "2081.SR", name: "المياه", sector: "المرافق العامة" },
+  { symbol: "2082.SR", name: "أكوا باور", sector: "المرافق العامة" },
   // صناديق الريت
+  { symbol: "4338.SR", name: "الأهلي ريت 1", sector: "صناديق الريت" },
+  { symbol: "4331.SR", name: "الجزيرة ريت", sector: "صناديق الريت" },
+  { symbol: "4348.SR", name: "الخبير ريت", sector: "صناديق الريت" },
+  { symbol: "4340.SR", name: "الراجحي ريت", sector: "صناديق الريت" },
+  { symbol: "4330.SR", name: "الرياض ريت", sector: "صناديق الريت" },
+  { symbol: "4337.SR", name: "مشاعر ريت", sector: "صناديق الريت" },
+  { symbol: "4334.SR", name: "المعذر ريت", sector: "صناديق الريت" },
+  { symbol: "4347.SR", name: "بنيان ريت", sector: "صناديق الريت" },
+  { symbol: "4333.SR", name: "تعليم ريت", sector: "صناديق الريت" },
   { symbol: "4332.SR", name: "جدوى ريت الحرمين", sector: "صناديق الريت" },
   { symbol: "4342.SR", name: "جدوى ريت السعودية", sector: "صناديق الريت" },
-  { symbol: "4343.SR", name: "ريت البلاد", sector: "صناديق الريت" },
-  { symbol: "4344.SR", name: "ريت ملكية", sector: "صناديق الريت" },
-  { symbol: "4345.SR", name: "ريت مشاركة", sector: "صناديق الريت" },
-  { symbol: "4346.SR", name: "ريت الأهلي", sector: "صناديق الريت" },
-  { symbol: "4347.SR", name: "ريت الرياض", sector: "صناديق الريت" },
-  { symbol: "4348.SR", name: "ريت إنجاز", sector: "صناديق الريت" },
-  // الإعلام
-  { symbol: "4070.SR", name: "تهامة للإعلان والعلاقات العامة", sector: "الإعلام" },
-  // التعليم
-  { symbol: "4292.SR", name: "مجموعة التعليم الدولية", sector: "التعليم" },
-  { symbol: "4341.SR", name: "الوطنية للتعليم (NCLE)", sector: "التعليم" },
-  // السياحة والترفيه
-  { symbol: "1830.SR", name: "لجام للرياضة", sector: "السياحة والترفيه" },
-  { symbol: "4009.SR", name: "السعودية للترفيه (SEVEN)", sector: "السياحة والترفيه" },
-  { symbol: "4280.SR", name: "فنادق ومنتجعات المناطق السعودية (SHRA)", sector: "السياحة والترفيه" },
-  // الخدمات المالية
-  { symbol: "1810.SR", name: "سيرا", sector: "الخدمات المالية" },
-  { symbol: "1831.SR", name: "مهارة", sector: "الخدمات المالية" },
-  { symbol: "1833.SR", name: "الموارد", sector: "الخدمات المالية" },
-  { symbol: "1834.SR", name: "سماسكو", sector: "الخدمات المالية" },
-  { symbol: "1835.SR", name: "تمكين", sector: "الخدمات المالية" },
-  { symbol: "4322.SR", name: "مداد", sector: "الخدمات المالية" },
+  { symbol: "4339.SR", name: "دراية ريت", sector: "صناديق الريت" },
+  { symbol: "4344.SR", name: "سدكو كابيتال ريت", sector: "صناديق الريت" },
+  { symbol: "4345.SR", name: "سويكورب وابل ريت", sector: "صناديق الريت" },
+  { symbol: "4335.SR", name: "مشاركة ريت", sector: "صناديق الريت" },
+  { symbol: "4336.SR", name: "ملكية ريت", sector: "صناديق الريت" },
+  { symbol: "4346.SR", name: "ميفك ريت", sector: "صناديق الريت" },
+  // العقارات
+  { symbol: "4220.SR", name: "إعمار", sector: "العقارات" },
+  { symbol: "4020.SR", name: "العقارية", sector: "العقارات" },
+  { symbol: "4320.SR", name: "الأندلس", sector: "العقارات" },
+  { symbol: "4230.SR", name: "البحر الأحمر", sector: "العقارات" },
+  { symbol: "4150.SR", name: "التعمير", sector: "العقارات" },
+  { symbol: "4321.SR", name: "المراكز", sector: "العقارات" },
+  { symbol: "4250.SR", name: "جبل عمر", sector: "العقارات" },
+  { symbol: "4300.SR", name: "دار الأركان", sector: "العقارات" },
+  { symbol: "4090.SR", name: "طيبة", sector: "العقارات" },
+  { symbol: "4100.SR", name: "مكة", sector: "العقارات" },
+  { symbol: "4310.SR", name: "مدينة المعرفة", sector: "العقارات" },
 ];
