@@ -275,7 +275,8 @@ export default function Home(){
   useEffect(()=>{if(stocks.every(s=>!s.data))return;const f=async()=>{const m={};await Promise.allSettled(stocks.map(async s=>{if(!s.data)return;try{const r=await fetch(`/api/chart?symbol=${s.symbol}`);if(r.ok){const d=await r.json();m[s.symbol]=generateSignals(d.chart||[])}}catch{}}));setSigMap(m)};f()},[stocks]);
 
 
-  // سكانر اليوم التالي
+  // سكانر اليوم التالي - استراتيجية التراكم والانفجار
+  // مبنية على تحليل 13 أبريل 2026: سلوشنز +7.2%, أنابيب الشرق +3.1%, الزامل +3.2%
   const runScanner=useCallback(async()=>{
     setScanLoading(true);setScanDone(false);setScanResults([]);
     const list=stocks.filter(s=>s.data);
@@ -286,34 +287,49 @@ export default function Home(){
         if(!r.ok)return;
         const d=await r.json();
         const cd=d.chart||[];
-        if(cd.length<30)return;
+        if(cd.length<15)return;
         const closes=cd.map(x=>x.close);
         const vols=cd.map(x=>x.volume);
         const highs=cd.map(x=>x.high);
         const lows=cd.map(x=>x.low);
-        const rsi=calcRSI(closes);
-        const macd=calcMACD(closes);
-        const sma20=calcSMA(closes,20);
-        const sma50=calcSMA(closes,50);
         const price=closes[closes.length-1];
-        const avgVol=vols.slice(-20).reduce((a,v)=>a+v,0)/20;
+        // شرط 1: التراكم - نطاق ضيق آخر 5 أيام أقل من 4%
+        const last5=closes.slice(-5);
+        const rangePercent=((Math.max(...last5)-Math.min(...last5))/Math.min(...last5))*100;
+        const c1=rangePercent<4;
+        // شرط 2: حجم يرتفع - اليوم أعلى من متوسط 10 أيام بـ 20%
+        const avgVol10=vols.slice(-11,-1).reduce((a,v)=>a+v,0)/10;
         const lastVol=vols[vols.length-1];
-        const atr=calcATR(highs,lows,closes);
-        const c1=rsi>=25&&rsi<=60;
-        const c2=lastVol>avgVol*1.1;
-        const c3=macd.histogram>0&&macd.macd>macd.signal;
-        const c4=sma20&&price>sma20;
-        const c5=sma20&&sma50&&sma20>sma50;
-        const score=[c1,c2,c3,c4,c5].filter(Boolean).length;
-        if(score>=2){
-          const target=(price*(1+0.015)).toFixed(2);
-          const stop=(price*(1-0.008)).toFixed(2);
-          results.push({...s,price,rsi,macdH:macd.histogram,vol:lastVol,avgVol,atr,score,conditions:{c1,c2,c3,c4,c5},target,stop,strength:score===5?"🔥 ممتاز":score===4?"⭐ قوي":"✅ جيد"});
+        const c2=lastVol>avgVol10*1.2;
+        // شرط 3: السعر أعلى من إغلاق أسبوع مضى
+        const weekAgo=closes[closes.length-6]||closes[0];
+        const c3=price>weekAgo;
+        // شرط 4: RSI في منطقة مناسبة
+        const rsi=calcRSI(closes);
+        const c4=rsi>=35&&rsi<=68;
+        // شرط 5: MACD غير سلبي بشكل حاد
+        const macd=calcMACD(closes);
+        const c5=macd.histogram>-0.5;
+        // شرط 6: السعر قريب أو فوق SMA20
+        const sma20=calcSMA(closes,20);
+        const c6=sma20&&price>=sma20*0.98;
+        // شرط 7: الشمعة الأخيرة خضراء أو شبه خضراء
+        const c7=closes[closes.length-1]>=closes[closes.length-2]*0.995;
+        const score=[c1,c2,c3,c4,c5,c6,c7].filter(Boolean).length;
+        if(score>=4){
+          const atr=calcATR(highs,lows,closes);
+          const targetPct=atr>0?Math.min((atr/price)*2,0.05):0.02;
+          const stopPct=atr>0?Math.max((atr/price),0.008):0.01;
+          const target=(price*(1+targetPct)).toFixed(2);
+          const stop=(price*(1-stopPct)).toFixed(2);
+          const profitPct=((target-price)/price*100).toFixed(1);
+          const strength=score===7?"🔥 ممتاز":score===6?"⭐ قوي":score===5?"✅ جيد":"🔵 محتمل";
+          results.push({...s,price,rsi,macdH:macd.histogram,vol:lastVol,avgVol:avgVol10,rangePercent:rangePercent.toFixed(1),score,conditions:{c1,c2,c3,c4,c5,c6,c7},target,stop,profitPct,strength});
         }
       }catch(e){}
     }));
-    results.sort((a,b)=>b.score-a.score);
-    setScanResults(results.slice(0,10));
+    results.sort((a,b)=>b.score!==a.score?b.score-a.score:Math.abs(a.rsi-50)-Math.abs(b.rsi-50));
+    setScanResults(results.slice(0,15));
     setScanLoading(false);setScanDone(true);
   },[stocks]);
 
@@ -345,7 +361,7 @@ export default function Home(){
       <main className="mn">
       {mainView==="scanner"&&<div className="scanner-wrap">
         <div className="scan-hdr">
-          <div><h2 className="scan-title">🎯 سكانر اليوم التالي</h2><p className="scan-sub">يبحث عن أسهم مرشحة للصعود غداً بناءً على: RSI + MACD + حجم التداول + المتوسطات</p></div>
+          <div><h2 className="scan-title">🎯 سكانر اليوم التالي</h2><p className="scan-sub">استراتيجية التراكم والانفجار — نطاق ضيق + حجم صاعد + شمعة خضراء + RSI مناسب</p></div>
           <button className="scanbtn" onClick={runScanner} disabled={scanLoading}>{scanLoading?"⏳ جاري الفحص...":"🔍 ابدأ الفحص"}</button>
         </div>
         {scanLoading&&<div className="scan-loading"><div className="scan-spinner"/><p>يفحص {stocks.filter(s=>s.data).length} سهم...</p></div>}
@@ -361,15 +377,17 @@ export default function Home(){
               </div>
               <div className="sc-price">{s.price?.toFixed(2)} <small>ر.س</small></div>
               <div className="sc-levels">
-                <div className="sc-lv grn">🎯 الهدف<span>{s.target}</span></div>
+                <div className="sc-lv grn">🎯 الهدف<span>{s.target} (+{s.profitPct}%)</span></div>
                 <div className="sc-lv red">🛑 الوقف<span>{s.stop}</span></div>
               </div>
               <div className="sc-conds">
-                <span className={s.conditions.c1?"cond-ok":"cond-no"}>RSI {s.rsi?.toFixed(0)}</span>
+                <span className={s.conditions.c1?"cond-ok":"cond-no"}>نطاق {s.rangePercent}%</span>
                 <span className={s.conditions.c2?"cond-ok":"cond-no"}>حجم ↑</span>
-                <span className={s.conditions.c3?"cond-ok":"cond-no"}>MACD ✓</span>
-                <span className={s.conditions.c4?"cond-ok":"cond-no"}>فوق SMA20</span>
-                <span className={s.conditions.c5?"cond-ok":"cond-no"}>اتجاه ↑</span>
+                <span className={s.conditions.c3?"cond-ok":"cond-no"}>أسبوع ↑</span>
+                <span className={s.conditions.c4?"cond-ok":"cond-no"}>RSI {s.rsi?.toFixed(0)}</span>
+                <span className={s.conditions.c5?"cond-ok":"cond-no"}>MACD</span>
+                <span className={s.conditions.c6?"cond-ok":"cond-no"}>SMA20</span>
+                <span className={s.conditions.c7?"cond-ok":"cond-no"}>شمعة ↑</span>
               </div>
             </div>
           ))}</div>
