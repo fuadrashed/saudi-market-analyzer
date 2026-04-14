@@ -241,6 +241,9 @@ export default function Home(){
   const[scanResults,setScanResults]=useState([]);
   const[scanLoading,setScanLoading]=useState(false);
   const[scanDone,setScanDone]=useState(false);
+  const[usScanResults,setUsScanResults]=useState([]);
+  const[usScanLoading,setUsScanLoading]=useState(false);
+  const[usScanDone,setUsScanDone]=useState(false);
 
   // تحميل قائمة الأسهم الكاملة من EODHD عند أول تشغيل
   useEffect(()=>{
@@ -362,6 +365,16 @@ export default function Home(){
     setScanLoading(false);setScanDone(true);
   },[stocks]);
 
+  // سكانر السوق الأمريكي
+  const runUsScanner=useCallback(async()=>{
+    setUsScanLoading(true);setUsScanDone(false);setUsScanResults([]);
+    try{
+      const r=await fetch("/api/us-scanner");
+      if(r.ok){const d=await r.json();setUsScanResults(d.results||[]);}
+    }catch(e){console.log("US scanner error:",e);}
+    setUsScanLoading(false);setUsScanDone(true);
+  },[]);
+
   const sigData=useMemo(()=>generateSignals(chartData),[chartData]);
   const filtered=stocks.filter(s=>{const sm=sector==="الكل"||s.sector===sector;const qm=!search||s.name.includes(search)||(s.nameEn||"").toLowerCase().includes(search.toLowerCase())||s.symbol.includes(search);const sf=sigFilter==="الكل"||(!sigMap[s.symbol]?sigFilter==="الكل":sigFilter==="شراء"?(sigMap[s.symbol]?.strength>=4):sigFilter==="حيادي"?(sigMap[s.symbol]?.strength===3):sigFilter==="بيع"?(sigMap[s.symbol]?.strength<=2):sigFilter==="صاعد"?(s.data?.changePercent>0):sigFilter==="هابط"?(s.data?.changePercent<0):true);return sm&&qm&&sf});
 
@@ -382,7 +395,7 @@ export default function Home(){
         </div>
       </div></header>
 
-      <div className="maintabs"><button className={`mtb${mainView==="market"?" mact":""}`} onClick={()=>setMainView("market")}>📊 السوق</button><button className={`mtb${mainView==="scanner"?" mact":""}`} onClick={()=>setMainView("scanner")}>🎯 سكانر اليوم التالي</button></div>
+      <div className="maintabs"><button className={`mtb${mainView==="market"?" mact":""}`} onClick={()=>setMainView("market")}>📊 السوق</button><button className={`mtb${mainView==="scanner"?" mact":""}`} onClick={()=>setMainView("scanner")}>🎯 سكانر اليوم التالي</button><button className={`mtb${mainView==="usscanner"?" mact":""}`} onClick={()=>setMainView("usscanner")}>🇺🇸 سكانر السوق الأمريكي</button></div>
       {mainView==="market"&&<div className="tbar"><div className="sbox"><span>🔍</span><input placeholder="ابحث عن سهم..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="stabs">{SECTORS.map(s=><button key={s} className={`stb${sector===s?" act":""}`} onClick={()=>setSector(s)}>{s}</button>)}</div><div className="vtog"><button className={view==="cards"?"act":""} onClick={()=>setView("cards")}>📊 بطاقات</button><button className={view==="heatmap"?"act":""} onClick={()=>setView("heatmap")}>🗺️ خريطة</button></div></div>}
       {mainView==="market"&&<div className="sigbar"><span className="sigbar-label">⚡ فلتر الإشارات:</span><div className="sigbtns">{["الكل","شراء","حيادي","بيع","صاعد","هابط"].map(f=><button key={f} className={`sfb sfb-${f}${sigFilter===f?" sact":""}`} onClick={()=>setSigFilter(f)}>{f==="الكل"?"📋 الكل":f==="شراء"?"🟢 شراء":f==="حيادي"?"🟡 حيادي":f==="بيع"?"🔴 بيع":f==="صاعد"?"📈 صاعد":"📉 هابط"}</button>)}</div><span className="sigbar-count">{filtered.length} سهم</span></div>}
 
@@ -418,6 +431,39 @@ export default function Home(){
                 <span className={s.conditions.c5?"cond-ok":"cond-no"}>RSI {s.rsi?.toFixed(0)}</span>
                 <span className={s.conditions.c6?"cond-ok":"cond-no"}>نطاق {s.range5}%</span>
                 <span className={s.conditions.c7?"cond-ok":"cond-no"}>أسبوع ↑</span>
+              </div>
+            </div>
+          ))}</div>
+        </>}
+      </div>}
+      {mainView==="usscanner"&&<div className="scanner-wrap">
+        <div className="scan-hdr">
+          <div><h2 className="scan-title">🇺🇸 سكانر السوق الأمريكي</h2><p className="scan-sub">أسهم من $5 إلى $10 — استراتيجية انفجار الحجم عند القاع 🔥</p></div>
+          <button className="scanbtn" onClick={runUsScanner} disabled={usScanLoading}>{usScanLoading?"⏳ جاري الفحص...":"🔍 ابدأ الفحص"}</button>
+        </div>
+        {usScanLoading&&<div className="scan-loading"><div className="scan-spinner"/><p>يفحص أسهم السوق الأمريكي $5-$10...</p></div>}
+        {usScanDone&&!usScanLoading&&<>
+          <div className="scan-summary">{usScanResults.length>0?`✅ وجد ${usScanResults.length} سهم مرشح`:"❌ لا توجد أسهم تحقق الشروط الآن"}</div>
+          <div className="scan-disclaimer">⚠️ للأغراض التعليمية فقط — السوق الأمريكي يفتح 4:30 مساءً بتوقيت السعودية — ليس نصيحة استثمارية</div>
+          <div className="scan-grid">{usScanResults.map((s,i)=>(
+            <div key={s.symbol} className="scan-card">
+              <div className="sc-top">
+                <div className="sc-rank">#{i+1}</div>
+                <div className="sc-info"><span className="sc-name">{s.name}</span><span className="sc-sym">{s.symbol}</span></div>
+                <span className="sc-strength">{s.strength}</span>
+              </div>
+              <div className="sc-price">${s.price?.toFixed(2)} <small>USD</small></div>
+              <div className="sc-levels">
+                <div className="sc-lv grn">🎯 الهدف<span>${s.target} (+{s.profitPct}%)</span></div>
+                <div className="sc-lv red">🛑 الوقف<span>${s.stop}</span></div>
+              </div>
+              <div className="sc-vol-badge">🔥 انفجار الحجم {s.volExplosion}x | شمعة +{s.candleChange}%</div>
+              <div className="sc-conds">
+                <span className={s.conditions.c1?"cond-ok":"cond-no"}>حجم {s.volExplosion}x</span>
+                <span className={s.conditions.c2?"cond-ok":"cond-no"}>كسر المقاومة</span>
+                <span className={s.conditions.c3?"cond-ok":"cond-no"}>هدوء قبلها</span>
+                <span className={s.conditions.c4?"cond-ok":"cond-no"}>شمعة +{s.candleChange}%</span>
+                <span className={s.conditions.c5?"cond-ok":"cond-no"}>RSI {s.rsi?.toFixed(0)}</span>
               </div>
             </div>
           ))}</div>
