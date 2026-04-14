@@ -275,8 +275,9 @@ export default function Home(){
   useEffect(()=>{if(stocks.every(s=>!s.data))return;const f=async()=>{const m={};await Promise.allSettled(stocks.map(async s=>{if(!s.data)return;try{const r=await fetch(`/api/chart?symbol=${s.symbol}`);if(r.ok){const d=await r.json();m[s.symbol]=generateSignals(d.chart||[])}}catch{}}));setSigMap(m)};f()},[stocks]);
 
 
-  // سكانر اليوم التالي - استراتيجية التراكم والانفجار
-  // مبنية على تحليل 13 أبريل 2026: سلوشنز +7.2%, أنابيب الشرق +3.1%, الزامل +3.2%
+  // سكانر اليوم التالي - استراتيجية انفجار الحجم عند القاع
+  // مبنية على تحليل واقعي: وفرة +4.1%, الفخارية +4.91%, الأسماك +3.65%, صندوق البلاد +9.84%
+  // السر: هدوء طويل + انفجار حجم مفاجئ + شمعة تكسر القمة = دخول المضاربين
   const runScanner=useCallback(async()=>{
     setScanLoading(true);setScanDone(false);setScanResults([]);
     const list=stocks.filter(s=>s.data);
@@ -293,42 +294,70 @@ export default function Home(){
         const highs=cd.map(x=>x.high);
         const lows=cd.map(x=>x.low);
         const price=closes[closes.length-1];
-        // شرط 1: التراكم - نطاق ضيق آخر 5 أيام أقل من 4%
-        const last5=closes.slice(-5);
-        const rangePercent=((Math.max(...last5)-Math.min(...last5))/Math.min(...last5))*100;
-        const c1=rangePercent<4;
-        // شرط 2: حجم يرتفع - اليوم أعلى من متوسط 10 أيام بـ 20%
-        const avgVol10=vols.slice(-11,-1).reduce((a,v)=>a+v,0)/10;
         const lastVol=vols[vols.length-1];
-        const c2=lastVol>avgVol10*1.2;
-        // شرط 3: السعر أعلى من إغلاق أسبوع مضى
-        const weekAgo=closes[closes.length-6]||closes[0];
-        const c3=price>weekAgo;
-        // شرط 4: RSI في منطقة مناسبة
+
+        // === استراتيجية انفجار الحجم عند القاع ===
+
+        // شرط 1: انفجار الحجم - اليوم أعلى من متوسط 20 يوم بـ 2.5x على الأقل (السر الأساسي)
+        const avgVol20=vols.slice(-21,-1).reduce((a,v)=>a+v,0)/20;
+        const volExplosion=avgVol20>0?lastVol/avgVol20:0;
+        const c1=volExplosion>=2.0;
+
+        // شرط 2: الشمعة تكسر أعلى سعر في آخر 10 أيام (كسر المقاومة)
+        const high10=Math.max(...highs.slice(-11,-1));
+        const c2=price>=high10*0.99;
+
+        // شرط 3: هدوء قبلها - متوسط حجم آخر 10 أيام أقل من متوسط 20 يوم (كان هادئاً)
+        const avgVol10=vols.slice(-11,-1).reduce((a,v)=>a+v,0)/10;
+        const c3=avgVol10<avgVol20*1.2;
+
+        // شرط 4: الشمعة الأخيرة خضراء قوية (ارتفاع 1%+ عن الإغلاق السابق)
+        const prevClose=closes[closes.length-2];
+        const candleChange=((price-prevClose)/prevClose)*100;
+        const c4=candleChange>=1.0;
+
+        // شرط 5: السعر ليس في تشبع شرائي (RSI أقل من 70)
         const rsi=calcRSI(closes);
-        const c4=rsi>=35&&rsi<=68;
-        // شرط 5: MACD غير سلبي بشكل حاد
-        const macd=calcMACD(closes);
-        const c5=macd.histogram>-0.5;
-        // شرط 6: السعر قريب أو فوق SMA20
-        const sma20=calcSMA(closes,20);
-        const c6=sma20&&price>=sma20*0.98;
-        // شرط 7: الشمعة الأخيرة خضراء أو شبه خضراء
-        const c7=closes[closes.length-1]>=closes[closes.length-2]*0.995;
+        const c5=rsi<70;
+
+        // شرط 6: السعر كان في نطاق ضيق آخر 5 أيام قبل الانفجار (تراكم هادئ)
+        const last5closes=closes.slice(-6,-1);
+        const range5=((Math.max(...last5closes)-Math.min(...last5closes))/Math.min(...last5closes))*100;
+        const c6=range5<5;
+
+        // شرط 7: اتجاه الأسبوع صاعد (السعر أعلى من أسبوع مضى)
+        const weekAgo=closes[closes.length-6]||closes[0];
+        const c7=price>weekAgo;
+
         const score=[c1,c2,c3,c4,c5,c6,c7].filter(Boolean).length;
-        if(score>=4){
+
+        // يجب أن يكون شرط انفجار الحجم (c1) موجوداً دائماً + 3 شروط أخرى
+        if(c1&&score>=4){
           const atr=calcATR(highs,lows,closes);
-          const targetPct=atr>0?Math.min((atr/price)*2,0.05):0.02;
-          const stopPct=atr>0?Math.max((atr/price),0.008):0.01;
+          const targetPct=atr>0?Math.min((atr/price)*2.5,0.06):0.03;
+          const stopPct=atr>0?Math.max((atr/price)*0.8,0.01):0.015;
           const target=(price*(1+targetPct)).toFixed(2);
           const stop=(price*(1-stopPct)).toFixed(2);
           const profitPct=((target-price)/price*100).toFixed(1);
           const strength=score===7?"🔥 ممتاز":score===6?"⭐ قوي":score===5?"✅ جيد":"🔵 محتمل";
-          results.push({...s,price,rsi,macdH:macd.histogram,vol:lastVol,avgVol:avgVol10,rangePercent:rangePercent.toFixed(1),score,conditions:{c1,c2,c3,c4,c5,c6,c7},target,stop,profitPct,strength});
+          results.push({
+            ...s,price,rsi,
+            volExplosion:volExplosion.toFixed(1),
+            candleChange:candleChange.toFixed(1),
+            vol:lastVol,avgVol:avgVol20,
+            range5:range5.toFixed(1),
+            score,
+            conditions:{c1,c2,c3,c4,c5,c6,c7},
+            target,stop,profitPct,strength
+          });
         }
       }catch(e){}
     }));
-    results.sort((a,b)=>b.score!==a.score?b.score-a.score:Math.abs(a.rsi-50)-Math.abs(b.rsi-50));
+    // ترتيب حسب قوة انفجار الحجم
+    results.sort((a,b)=>{
+      if(b.score!==a.score)return b.score-a.score;
+      return parseFloat(b.volExplosion)-parseFloat(a.volExplosion);
+    });
     setScanResults(results.slice(0,15));
     setScanLoading(false);setScanDone(true);
   },[stocks]);
@@ -361,7 +390,7 @@ export default function Home(){
       <main className="mn">
       {mainView==="scanner"&&<div className="scanner-wrap">
         <div className="scan-hdr">
-          <div><h2 className="scan-title">🎯 سكانر اليوم التالي</h2><p className="scan-sub">استراتيجية التراكم والانفجار — نطاق ضيق + حجم صاعد + شمعة خضراء + RSI مناسب</p></div>
+          <div><h2 className="scan-title">🎯 سكانر اليوم التالي</h2><p className="scan-sub">استراتيجية انفجار الحجم عند القاع — هدوء طويل ← انفجار حجم ← كسر المقاومة = دخول المضاربين 🔥</p></div>
           <button className="scanbtn" onClick={runScanner} disabled={scanLoading}>{scanLoading?"⏳ جاري الفحص...":"🔍 ابدأ الفحص"}</button>
         </div>
         {scanLoading&&<div className="scan-loading"><div className="scan-spinner"/><p>يفحص {stocks.filter(s=>s.data).length} سهم...</p></div>}
@@ -380,14 +409,15 @@ export default function Home(){
                 <div className="sc-lv grn">🎯 الهدف<span>{s.target} (+{s.profitPct}%)</span></div>
                 <div className="sc-lv red">🛑 الوقف<span>{s.stop}</span></div>
               </div>
+              <div className="sc-vol-badge">🔥 انفجار الحجم {s.volExplosion}x | شمعة +{s.candleChange}%</div>
               <div className="sc-conds">
-                <span className={s.conditions.c1?"cond-ok":"cond-no"}>نطاق {s.rangePercent}%</span>
-                <span className={s.conditions.c2?"cond-ok":"cond-no"}>حجم ↑</span>
-                <span className={s.conditions.c3?"cond-ok":"cond-no"}>أسبوع ↑</span>
-                <span className={s.conditions.c4?"cond-ok":"cond-no"}>RSI {s.rsi?.toFixed(0)}</span>
-                <span className={s.conditions.c5?"cond-ok":"cond-no"}>MACD</span>
-                <span className={s.conditions.c6?"cond-ok":"cond-no"}>SMA20</span>
-                <span className={s.conditions.c7?"cond-ok":"cond-no"}>شمعة ↑</span>
+                <span className={s.conditions.c1?"cond-ok":"cond-no"}>حجم {s.volExplosion}x</span>
+                <span className={s.conditions.c2?"cond-ok":"cond-no"}>كسر المقاومة</span>
+                <span className={s.conditions.c3?"cond-ok":"cond-no"}>هدوء قبلها</span>
+                <span className={s.conditions.c4?"cond-ok":"cond-no"}>شمعة +{s.candleChange}%</span>
+                <span className={s.conditions.c5?"cond-ok":"cond-no"}>RSI {s.rsi?.toFixed(0)}</span>
+                <span className={s.conditions.c6?"cond-ok":"cond-no"}>نطاق {s.range5}%</span>
+                <span className={s.conditions.c7?"cond-ok":"cond-no"}>أسبوع ↑</span>
               </div>
             </div>
           ))}</div>
@@ -568,6 +598,7 @@ export default function Home(){
       .sc-lv{flex:1;background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;font-size:10px;color:rgba(255,255,255,.4);display:flex;flex-direction:column;gap:4px}
       .sc-lv span{font-family:'Space Mono',monospace;font-size:13px;font-weight:700}
       .sc-lv.grn span{color:#00E676}.sc-lv.red span{color:#FF1744}
+      .sc-vol-badge{background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.2);border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;color:#00E676;margin-bottom:8px;text-align:center}
       .sc-conds{display:flex;flex-wrap:wrap;gap:6px}
       .cond-ok{background:rgba(0,230,118,.12);color:#00E676;border:1px solid rgba(0,230,118,.25);padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600}
       .cond-no{background:rgba(255,255,255,.04);color:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.08);padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600;text-decoration:line-through}
