@@ -1,50 +1,73 @@
-// قائمة أسهم أمريكية $5-$10 نشطة ومعروفة
+// قائمة أسهم أمريكية نشطة أقل من $25
 const US_STOCKS = [
-  // تقنية وإنترنت
-  {symbol:"HEAR",name:"Turtle Beach"},{symbol:"MARA",name:"Marathon Digital"},{symbol:"RIOT",name:"Riot Platforms"},
-  {symbol:"CIFR",name:"Cipher Mining"},{symbol:"BITF",name:"Bitfarms"},{symbol:"HUT",name:"Hut 8 Mining"},
-  {symbol:"CLSK",name:"CleanSpark"},{symbol:"IREN",name:"Iris Energy"},{symbol:"BTBT",name:"Bit Digital"},
-  {symbol:"WULF",name:"TeraWulf"},{symbol:"ARBK",name:"Argo Blockchain"},{symbol:"CORZ",name:"Core Scientific"},
-  // طاقة
-  {symbol:"TELL",name:"Tellurian"},{symbol:"GEVO",name:"Gevo"},{symbol:"PLUG",name:"Plug Power"},
-  {symbol:"FCEL",name:"FuelCell Energy"},{symbol:"BLNK",name:"Blink Charging"},{symbol:"SRM",name:"SRM Entertainment"},
-  {symbol:"NKLA",name:"Nikola"},{symbol:"GOEV",name:"Canoo"},{symbol:"WKHS",name:"Workhorse"},
-  // بايوتك وصحة
-  {symbol:"SAVA",name:"Cassava Sciences"},{symbol:"MDJH",name:"MDJM Ltd"},{symbol:"CRIS",name:"Curis"},
-  {symbol:"AGEN",name:"Agenus"},{symbol:"NVAX",name:"Novavax"},{symbol:"ADMA",name:"ADMA Biologics"},
-  {symbol:"PRAX",name:"Praxis Precision"},{symbol:"APTO",name:"Aptose Biosciences"},
-  // تجزئة وخدمات
-  {symbol:"BBBY",name:"Beyond Inc"},{symbol:"EXPR",name:"Express Inc"},{symbol:"CLOV",name:"Clover Health"},
-  {symbol:"LMND",name:"Lemonade"},{symbol:"OPEN",name:"Opendoor"},{symbol:"BARK",name:"BarkBox"},
-  {symbol:"WISH",name:"ContextLogic"},{symbol:"SPCE",name:"Virgin Galactic"},
-  // مالية وتأمين  
-  {symbol:"UWMC",name:"UWM Holdings"},{symbol:"CURO",name:"CURO Group"},{symbol:"HSAQ",name:"Health Assurance"},
-  {symbol:"OPES",name:"Opes Acquisition"},{symbol:"MILE",name:"Metromile"},
-  // صناعة وتصنيع
-  {symbol:"MVIS",name:"MicroVision"},{symbol:"IDEX",name:"Ideanomics"},{symbol:"SOLO",name:"Electrameccanica"},
-  {symbol:"XPEV",name:"XPeng"},{symbol:"LI",name:"Li Auto"},{symbol:"NIO",name:"Nio"},
+  // تقنية
+  {symbol:"MARA",name:"Marathon Digital"},{symbol:"RIOT",name:"Riot Platforms"},
+  {symbol:"CIFR",name:"Cipher Mining"},{symbol:"BITF",name:"Bitfarms"},
+  {symbol:"HUT",name:"Hut 8 Mining"},{symbol:"CLSK",name:"CleanSpark"},
+  {symbol:"IREN",name:"Iris Energy"},{symbol:"BTBT",name:"Bit Digital"},
+  {symbol:"WULF",name:"TeraWulf"},{symbol:"CORZ",name:"Core Scientific"},
+  {symbol:"MVIS",name:"MicroVision"},{symbol:"IDEX",name:"Ideanomics"},
+  {symbol:"HEAR",name:"Turtle Beach"},{symbol:"CODA",name:"Coda Octopus"},
+  {symbol:"PXLW",name:"Pixelworks"},{symbol:"KOPN",name:"Kopin Corp"},
+  // طاقة وسيارات
+  {symbol:"PLUG",name:"Plug Power"},{symbol:"FCEL",name:"FuelCell Energy"},
+  {symbol:"BLNK",name:"Blink Charging"},{symbol:"NKLA",name:"Nikola"},
+  {symbol:"GOEV",name:"Canoo"},{symbol:"WKHS",name:"Workhorse"},
+  {symbol:"RIDE",name:"Lordstown Motors"},{symbol:"SOLO",name:"Electrameccanica"},
   {symbol:"FFIE",name:"Faraday Future"},{symbol:"MULN",name:"Mullen Auto"},
+  {symbol:"GEVO",name:"Gevo"},{symbol:"TELL",name:"Tellurian"},
+  {symbol:"REI",name:"Ring Energy"},{symbol:"NOG",name:"Northern Oil"},
+  // بايوتك
+  {symbol:"SAVA",name:"Cassava Sciences"},{symbol:"AGEN",name:"Agenus"},
+  {symbol:"NVAX",name:"Novavax"},{symbol:"ADMA",name:"ADMA Biologics"},
+  {symbol:"CRIS",name:"Curis"},{symbol:"APTO",name:"Aptose Biosciences"},
+  {symbol:"NKTR",name:"Nektar Therapeutics"},{symbol:"SRNE",name:"Sorrento"},
+  {symbol:"OCGN",name:"Ocugen"},{symbol:"ATOS",name:"Athenex"},
+  {symbol:"IMVT",name:"Immunovant"},{symbol:"ADTX",name:"Aditxt"},
+  {symbol:"PRTK",name:"Paratek Pharma"},{symbol:"ACST",name:"Acasti Pharma"},
+  // تجزئة وخدمات
+  {symbol:"OPEN",name:"Opendoor"},{symbol:"CLOV",name:"Clover Health"},
+  {symbol:"LMND",name:"Lemonade"},{symbol:"BARK",name:"BarkBox"},
+  {symbol:"WISH",name:"ContextLogic"},{symbol:"SPCE",name:"Virgin Galactic"},
+  {symbol:"UWMC",name:"UWM Holdings"},{symbol:"PRPL",name:"Purple Innovation"},
+  {symbol:"BBIG",name:"Vinco Ventures"},{symbol:"EXPR",name:"Express Inc"},
+  {symbol:"NAKD",name:"Naked Brand"},{symbol:"KOSS",name:"Koss Corp"},
+  // مالية
+  {symbol:"CURO",name:"CURO Group"},{symbol:"GPMT",name:"Granite Point"},
+  {symbol:"BRSP",name:"BrightSpire"},{symbol:"ACRE",name:"Ares Commercial"},
+  {symbol:"HONE",name:"HarborOne"},{symbol:"ATLC",name:"Atlanticus Holdings"},
   // اتصالات وميديا
-  {symbol:"TMUS",name:"T-Mobile"},{symbol:"LUMN",name:"Lumen Tech"},{symbol:"SIRI",name:"Sirius XM"},
-  {symbol:"PARA",name:"Paramount"},{symbol:"AMC",name:"AMC Networks"},
-  // عقارات وصناديق
-  {symbol:"BRSP",name:"BrightSpire Capital"},{symbol:"GPMT",name:"Granite Point Mortgage"},
-  {symbol:"ACRE",name:"Ares Commercial Real Estate"},{symbol:"HONE",name:"HarborOne Bancorp"},
+  {symbol:"LUMN",name:"Lumen Tech"},{symbol:"SIRI",name:"Sirius XM"},
+  {symbol:"PARA",name:"Paramount"},{symbol:"AMC",name:"AMC Entertainment"},
+  {symbol:"CINE",name:"Cinemark"},{symbol:"IMAX",name:"IMAX Corp"},
+  // صناعة
+  {symbol:"SOLO",name:"Electrameccanica"},{symbol:"ZKIN",name:"ZK International"},
+  {symbol:"SHIP",name:"Seanergy Maritime"},{symbol:"EDSA",name:"Edesa Biotech"},
+  {symbol:"TRKA",name:"Troika Media"},{symbol:"EEIQ",name:"Elite Education"},
+  // صناديق وETF متقلبة
+  {symbol:"SOXS",name:"Direxion Semi Bear"},{symbol:"LABD",name:"Direxion Bio Bear"},
+  {symbol:"DRIP",name:"Direxion Oil Bear"},{symbol:"UVXY",name:"ProShares VIX"},
+  {symbol:"VIXY",name:"ProShares VIX Short"},{symbol:"SDOW",name:"UltraPro Short DOW"},
+  // صينية مدرجة أمريكا
+  {symbol:"NIO",name:"Nio Inc"},{symbol:"XPEV",name:"XPeng"},
+  {symbol:"LI",name:"Li Auto"},{symbol:"NTES",name:"NetEase"},
+  {symbol:"BILI",name:"Bilibili"},{symbol:"DOYU",name:"DouYu"},
+  {symbol:"HUYA",name:"Huya"},{symbol:"QFIN",name:"360 Finance"},
+  {symbol:"BTRS",name:"Billtrust"},{symbol:"TIGR",name:"Tiger Brokers"},
 ];
 
 export default async function handler(req, res) {
   const apiToken = process.env.EODHD_API_KEY || "";
   const results = [];
-  const fromDate = getDateDaysAgo(90);
+  const fromDate = getDateDaysAgo(60);
 
   await Promise.allSettled(US_STOCKS.map(async stock => {
     try {
-      // جلب بيانات تاريخية من EODHD
       const url = `https://eodhd.com/api/eod/${stock.symbol}.US?api_token=${apiToken}&fmt=json&period=d&order=a&from=${fromDate}`;
       const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (!response.ok) return;
       const data = await response.json();
-      if (!Array.isArray(data) || data.length < 15) return;
+      if (!Array.isArray(data) || data.length < 10) return;
 
       const closes = data.map(d => +(d.adjusted_close || d.close));
       const vols = data.map(d => +d.volume);
@@ -52,52 +75,62 @@ export default async function handler(req, res) {
       const lows = data.map(d => +d.low);
       const price = closes[closes.length - 1];
 
-      // فلتر السعر $5-$10
-      if (price < 5 || price > 10) return;
+      // فلتر السعر أقل من $25
+      if (price <= 0 || price > 25) return;
 
       const lastVol = vols[vols.length - 1];
+
+      // شرط 1: حجم أكثر من 500K
+      const c1 = lastVol >= 500000;
+
+      // شرط 2: تغير الحجم أكثر من 100% (ضعف المتوسط)
       const avgVol20 = vols.slice(-21, -1).reduce((a, v) => a + v, 0) / 20;
-      const volExplosion = avgVol20 > 0 ? lastVol / avgVol20 : 0;
+      const volChange = avgVol20 > 0 ? ((lastVol - avgVol20) / avgVol20) * 100 : 0;
+      const c2 = volChange >= 100;
 
-      // شرط انفجار الحجم
-      const c1 = volExplosion >= 2.0;
+      // شرط 3: الحجم النسبي أكبر من 2
+      const relVol = avgVol20 > 0 ? lastVol / avgVol20 : 0;
+      const c3 = relVol >= 2;
 
-      // كسر المقاومة
-      const high10 = Math.max(...highs.slice(-11, -1));
-      const c2 = price >= high10 * 0.99;
-
-      // هدوء قبلها
-      const avgVol10 = vols.slice(-11, -1).reduce((a, v) => a + v, 0) / 10;
-      const c3 = avgVol10 < avgVol20 * 1.2;
-
-      // شمعة خضراء قوية
+      // شرط 4: التغير اليومي أكثر من 0% (صاعد)
       const prevClose = closes[closes.length - 2];
-      const candleChange = ((price - prevClose) / prevClose) * 100;
-      const c4 = candleChange >= 1.0;
+      const changePercent = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
+      const c4 = changePercent > 0;
 
-      // RSI مناسب
+      // شرط 5: شمعة خضراء قوية (أكثر من 1%)
+      const c5 = changePercent >= 1.0;
+
+      // شرط 6: كسر أعلى سعر في 10 أيام
+      const high10 = Math.max(...highs.slice(-11, -1));
+      const c6 = price >= high10 * 0.98;
+
+      // شرط 7: RSI مناسب (ليس متشبعاً)
       const rsi = calcRSI(closes);
-      const c5 = rsi < 70;
+      const c7 = rsi < 75;
 
-      const score = [c1, c2, c3, c4, c5].filter(Boolean).length;
+      const score = [c1, c2, c3, c4, c5, c6, c7].filter(Boolean).length;
 
-      if (c1 && score >= 3) {
+      // لازم يحقق: حجم 500K + تغير حجم 100% + حجم نسبي 2x + صاعد + 2 شروط أخرى
+      if (c1 && c2 && c3 && c4 && score >= 5) {
         const atr = calcATR(highs, lows, closes);
-        const targetPct = atr > 0 ? Math.min((atr / price) * 2.5, 0.06) : 0.03;
+        const targetPct = atr > 0 ? Math.min((atr / price) * 2.5, 0.07) : 0.03;
         const stopPct = atr > 0 ? Math.max((atr / price) * 0.8, 0.01) : 0.015;
         const target = (price * (1 + targetPct)).toFixed(2);
         const stop = (price * (1 - stopPct)).toFixed(2);
         const profitPct = ((target - price) / price * 100).toFixed(1);
-        const strength = score === 5 ? "🔥 ممتاز" : score === 4 ? "⭐ قوي" : "✅ جيد";
+        const strength = score === 7 ? "🔥 ممتاز" : score === 6 ? "⭐ قوي" : "✅ جيد";
 
         results.push({
           symbol: stock.symbol,
           name: stock.name,
           price, rsi,
-          volExplosion: volExplosion.toFixed(1),
-          candleChange: candleChange.toFixed(1),
-          vol: lastVol, avgVol: avgVol20,
-          score, conditions: { c1, c2, c3, c4, c5 },
+          volExplosion: relVol.toFixed(1),
+          volChange: volChange.toFixed(0),
+          candleChange: changePercent.toFixed(1),
+          vol: lastVol,
+          avgVol: Math.round(avgVol20),
+          score,
+          conditions: { c1, c2, c3, c4, c5, c6, c7 },
           target, stop, profitPct, strength,
           currency: "USD"
         });
@@ -105,6 +138,7 @@ export default async function handler(req, res) {
     } catch (e) {}
   }));
 
+  // ترتيب حسب الحجم النسبي
   results.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     return parseFloat(b.volExplosion) - parseFloat(a.volExplosion);

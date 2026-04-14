@@ -438,7 +438,7 @@ export default function Home(){
       </div>}
       {mainView==="usscanner"&&<div className="scanner-wrap">
         <div className="scan-hdr">
-          <div><h2 className="scan-title">🇺🇸 سكانر السوق الأمريكي</h2><p className="scan-sub">أسهم من $5 إلى $10 — استراتيجية انفجار الحجم عند القاع 🔥</p></div>
+          <div><h2 className="scan-title">🇺🇸 سكانر السوق الأمريكي</h2><p className="scan-sub">أسهم أقل من $25 | حجم +500K | تغير الحجم +100% | حجم نسبي 2x+ | صاعد 🔥</p></div>
           <button className="scanbtn" onClick={runUsScanner} disabled={usScanLoading}>{usScanLoading?"⏳ جاري الفحص...":"🔍 ابدأ الفحص"}</button>
         </div>
         {usScanLoading&&<div className="scan-loading"><div className="scan-spinner"/><p>يفحص أسهم السوق الأمريكي $5-$10...</p></div>}
@@ -457,13 +457,15 @@ export default function Home(){
                 <div className="sc-lv grn">🎯 الهدف<span>${s.target} (+{s.profitPct}%)</span></div>
                 <div className="sc-lv red">🛑 الوقف<span>${s.stop}</span></div>
               </div>
-              <div className="sc-vol-badge">🔥 انفجار الحجم {s.volExplosion}x | شمعة +{s.candleChange}%</div>
+              <div className="sc-vol-badge">🔥 حجم نسبي {s.volExplosion}x | تغير الحجم +{s.volChange}% | شمعة +{s.candleChange}%</div>
               <div className="sc-conds">
-                <span className={s.conditions.c1?"cond-ok":"cond-no"}>حجم {s.volExplosion}x</span>
-                <span className={s.conditions.c2?"cond-ok":"cond-no"}>كسر المقاومة</span>
-                <span className={s.conditions.c3?"cond-ok":"cond-no"}>هدوء قبلها</span>
-                <span className={s.conditions.c4?"cond-ok":"cond-no"}>شمعة +{s.candleChange}%</span>
-                <span className={s.conditions.c5?"cond-ok":"cond-no"}>RSI {s.rsi?.toFixed(0)}</span>
+                <span className={s.conditions.c1?"cond-ok":"cond-no"}>حجم {(s.vol/1000).toFixed(0)}K</span>
+                <span className={s.conditions.c2?"cond-ok":"cond-no"}>حجم +{s.volChange}%</span>
+                <span className={s.conditions.c3?"cond-ok":"cond-no"}>نسبي {s.volExplosion}x</span>
+                <span className={s.conditions.c4?"cond-ok":"cond-no"}>صاعد ↑</span>
+                <span className={s.conditions.c5?"cond-ok":"cond-no"}>شمعة +{s.candleChange}%</span>
+                <span className={s.conditions.c6?"cond-ok":"cond-no"}>كسر المقاومة</span>
+                <span className={s.conditions.c7?"cond-ok":"cond-no"}>RSI {s.rsi?.toFixed(0)}</span>
               </div>
             </div>
           ))}</div>
