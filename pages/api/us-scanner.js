@@ -1,5 +1,22 @@
-// قائمة أسهم أمريكية نشطة أقل من $25
+// قائمة أسهم أمريكية نشطة - تشمل Penny Stocks $1-$5 والأسهم الرخيصة حتى $25
 const US_STOCKS = [
+  // Penny Stocks $1-$5 المتقلبة
+  {symbol:\"VERB\",name:\"Verb Technology\"},{symbol:\"MDJH\",name:\"MDJM Ltd\"},
+  {symbol:\"AREB\",name:\"American Rebel\"},{symbol:\"SGBX\",name:\"SG Blocks\"},
+  {symbol:\"CJET\",name:\"China Jet\"},{symbol:\"CLPS\",name:\"CLPS Technology\"},
+  {symbol:\"MBOT\",name:\"Microbot Medical\"},{symbol:\"BSFC\",name:\"Blue Star Foods\"},
+  {symbol:\"LIQT\",name:\"LiqTech Intl\"},{symbol:\"RCAT\",name:\"Red Cat Holdings\"},
+  {symbol:\"KAVL\",name:\"Kaival Brands\"},{symbol:\"HPNN\",name:\"Hop-On Inc\"},
+  {symbol:\"ATNF\",name:\"180 Life Sciences\"},{symbol:\"LGVN\",name:\"Longeviti Neuro\"},
+  {symbol:\"BNGO\",name:\"Bionano Genomics\"},{symbol:\"SINT\",name:\"Sintx Technologies\"},
+  {symbol:\"ONDS\",name:\"Ondas Holdings\"},{symbol:\"SHOT\",name:\"Safety Shot\"},
+  {symbol:\"ABAT\",name:\"American Battery\"},{symbol:\"AEYE\",name:\"AudioEye\"},
+  {symbol:\"INPX\",name:\"Inpixon\"},{symbol:\"CXAI\",name:\"CXApp\"},
+  {symbol:\"AULT\",name:\"Ault Alliance\"},{symbol:\"DPRO\",name:\"Draganfly\"},
+  {symbol:\"AGRI\",name:\"AgriFORCE\"},{symbol:\"EFTR\",name:\"eFFECTOR Therap\"},
+  {symbol:\"TPVG\",name:\"TriplePoint Venture\"},{symbol:\"SPGX\",name:\"Sustainable Green\"},
+  {symbol:\"WISA\",name:\"WiSA Technologies\"},{symbol:\"PBTS\",name:\"Powerbridge Tech\"},
+
   // تقنية
   {symbol:"MARA",name:"Marathon Digital"},{symbol:"RIOT",name:"Riot Platforms"},
   {symbol:"CIFR",name:"Cipher Mining"},{symbol:"BITF",name:"Bitfarms"},
@@ -61,6 +78,10 @@ export default async function handler(req, res) {
   const results = [];
   const fromDate = getDateDaysAgo(60);
 
+  // فلتر السعر من الـ query — الافتراضي $1-$5 (Penny Stocks)
+  const minPrice = parseFloat(req.query.minPrice || "1");
+  const maxPrice = parseFloat(req.query.maxPrice || "5");
+
   await Promise.allSettled(US_STOCKS.map(async stock => {
     try {
       const url = `https://eodhd.com/api/eod/${stock.symbol}.US?api_token=${apiToken}&fmt=json&period=d&order=a&from=${fromDate}`;
@@ -75,8 +96,8 @@ export default async function handler(req, res) {
       const lows = data.map(d => +d.low);
       const price = closes[closes.length - 1];
 
-      // فلتر السعر أقل من $25
-      if (price <= 0 || price > 25) return;
+      // فلتر السعر حسب النطاق المحدد
+      if (price <= 0 || price < minPrice || price > maxPrice) return;
 
       const lastVol = vols[vols.length - 1];
 
