@@ -444,18 +444,20 @@ export default function Home(){
           <button className="scanbtn" onClick={runUsScanner} disabled={usScanLoading}>{usScanLoading?"⏳ جاري الفحص...":"🔍 ابدأ الفحص"}</button>
         </div>
         <div className="us-price-controls">
-          <span className="usp-label">💰 نطاق السعر (USD):</span>
+          <div className="usp-top-row">
+            <span className="usp-label">💰 نطاق السعر (USD):</span>
+            <div className="usp-custom">
+              <span>من $</span>
+              <input type="number" value={usMinPrice} onChange={e=>setUsMinPrice(e.target.value)} min="0.1" max="100" step="0.5" className="usp-input"/>
+              <span>إلى $</span>
+              <input type="number" value={usMaxPrice} onChange={e=>setUsMaxPrice(e.target.value)} min="0.5" max="100" step="0.5" className="usp-input"/>
+            </div>
+          </div>
           <div className="usp-presets">
-            <button className={`usp-btn${usMinPrice==="1"&&usMaxPrice==="5"?" usp-act":""}`} onClick={()=>{setUsMinPrice("1");setUsMaxPrice("5")}}>$1 - $5 🔥 Penny</button>
+            <button className={`usp-btn${usMinPrice==="1"&&usMaxPrice==="5"?" usp-act":""}`} onClick={()=>{setUsMinPrice("1");setUsMaxPrice("5")}}>🔥 $1 - $5 Penny</button>
             <button className={`usp-btn${usMinPrice==="5"&&usMaxPrice==="10"?" usp-act":""}`} onClick={()=>{setUsMinPrice("5");setUsMaxPrice("10")}}>$5 - $10</button>
             <button className={`usp-btn${usMinPrice==="10"&&usMaxPrice==="25"?" usp-act":""}`} onClick={()=>{setUsMinPrice("10");setUsMaxPrice("25")}}>$10 - $25</button>
             <button className={`usp-btn${usMinPrice==="1"&&usMaxPrice==="25"?" usp-act":""}`} onClick={()=>{setUsMinPrice("1");setUsMaxPrice("25")}}>الكل $1-$25</button>
-          </div>
-          <div className="usp-custom">
-            <span>من $</span>
-            <input type="number" value={usMinPrice} onChange={e=>setUsMinPrice(e.target.value)} min="0.1" max="100" step="0.5" className="usp-input"/>
-            <span>إلى $</span>
-            <input type="number" value={usMaxPrice} onChange={e=>setUsMaxPrice(e.target.value)} min="0.5" max="100" step="0.5" className="usp-input"/>
           </div>
         </div>
         {usScanLoading&&<div className="scan-loading"><div className="scan-spinner"/><p>يفحص أسهم السوق الأمريكي $5-$10...</p></div>}
@@ -668,12 +670,13 @@ export default function Home(){
       .cond-ok{background:rgba(0,230,118,.12);color:#00E676;border:1px solid rgba(0,230,118,.25);padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600}
       .cond-no{background:rgba(255,255,255,.04);color:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.08);padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600;text-decoration:line-through}
 
-      .us-price-controls{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:16px 20px;margin-bottom:20px;display:flex;flex-wrap:wrap;align-items:center;gap:14px}
-      .usp-label{font-size:13px;font-weight:700;color:rgba(255,255,255,.6);white-space:nowrap}
+      .us-price-controls{background:rgba(255,255,255,.03);border:1px solid rgba(0,230,118,.15);border-radius:14px;padding:16px 20px;margin-bottom:20px;display:flex;flex-direction:column;gap:12px}
+      .usp-top-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+      .usp-label{font-size:13px;font-weight:700;color:#00E676;white-space:nowrap}
       .usp-presets{display:flex;gap:8px;flex-wrap:wrap}
-      .usp-btn{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.5);padding:7px 14px;border-radius:9px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;transition:all .2s;white-space:nowrap}
+      .usp-btn{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.5);padding:8px 16px;border-radius:9px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;transition:all .2s;white-space:nowrap}
       .usp-btn:hover{background:rgba(255,255,255,.08);color:white}
-      .usp-btn.usp-act{background:rgba(0,230,118,.15);border-color:rgba(0,230,118,.35);color:#00E676}
+      .usp-btn.usp-act{background:rgba(0,230,118,.15);border-color:rgba(0,230,118,.35);color:#00E676;font-weight:800}
       .usp-custom{display:flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,.5)}
       .usp-input{width:65px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 10px;color:white;font-family:inherit;font-size:13px;font-weight:700;text-align:center;outline:none;direction:ltr}
       .usp-input:focus{border-color:rgba(0,230,118,.4);box-shadow:0 0 0 2px rgba(0,230,118,.1)}
