@@ -246,6 +246,11 @@ export default function Home(){
   const[usScanDone,setUsScanDone]=useState(false);
   const[usMinPrice,setUsMinPrice]=useState("1");
   const[usMaxPrice,setUsMaxPrice]=useState("5");
+  const[smcResults,setSmcResults]=useState([]);
+  const[smcLoading,setSmcLoading]=useState(false);
+  const[smcDone,setSmcDone]=useState(false);
+  const[smcMarket,setSmcMarket]=useState("saudi");
+  const[smcMinScore,setSmcMinScore]=useState(3);
 
   // تحميل قائمة الأسهم الكاملة من EODHD عند أول تشغيل
   useEffect(()=>{
@@ -377,6 +382,84 @@ export default function Home(){
     setUsScanLoading(false);setUsScanDone(true);
   },[usMinPrice,usMaxPrice]);
 
+  // ─── سكانر SMC الذكي ─────────────────────────────────
+  const runSmcScanner=useCallback(async()=>{
+    setSmcLoading(true);setSmcDone(false);setSmcResults([]);
+    const list=smcMarket==="saudi"?stocks.filter(s=>s.data):stocks.filter(s=>s.data).slice(0,30);
+    const results=[];
+    await Promise.allSettled(list.map(async s=>{
+      try{
+        const r=await fetch(`/api/chart?symbol=${s.symbol}&scanner=1`);
+        if(!r.ok)return;
+        const d=await r.json();
+        const cd=d.chart||[];
+        if(cd.length<20)return;
+        const closes=cd.map(x=>x.close);
+        const highs=cd.map(x=>x.high);
+        const lows=cd.map(x=>x.low);
+        const vols=cd.map(x=>x.volume);
+        const price=closes[closes.length-1];
+        const n=closes.length;
+        const atr=calcATR(highs,lows,closes);
+        const rsi=calcRSI(closes);
+        const avgVol=vols.slice(-21,-1).reduce((a,v)=>a+v,0)/20;
+        const lastVol=vols[n-1];
+        const sigs=[];
+        let score=0;
+
+        // 1. Order Block صاعد: شمعة هبوطية قبل حركة صاعدة قوية
+        const ob_bull=closes[n-2]<closes[n-3]&&closes[n-1]>highs[n-3]&&(closes[n-1]-closes[n-3])>atr*0.5;
+        if(ob_bull){sigs.push({t:"OB صاعد",c:"#26a69a"});score++;}
+
+        // 2. FVG صاعد: فجوة بين high[2] و low[0]
+        const fvg_bull=lows[n-1]>highs[n-3]&&closes[n-2]>closes[n-2];
+        if(fvg_bull){sigs.push({t:"FVG ↑",c:"#00bcd4"});score++;}
+
+        // 3. BOS: كسر آخر قمة
+        const swingH=Math.max(...highs.slice(-11,-1));
+        const bos=closes[n-1]>swingH&&closes[n-2]<=swingH;
+        if(bos){sigs.push({t:"BOS ↑",c:"#2196f3"});score+=2;}
+
+        // 4. RSI ارتداد من تشبع بيعي
+        const rsi_prev=calcRSI(closes.slice(0,-1));
+        const rsi_bounce=rsi_prev<40&&rsi>rsi_prev&&rsi<60;
+        if(rsi_bounce){sigs.push({t:"RSI ارتداد",c:"#ff9800"});score++;}
+
+        // 5. انفجار حجم
+        const vol_exp=avgVol>0?lastVol/avgVol:0;
+        if(vol_exp>=1.8){sigs.push({t:`حجم ${vol_exp.toFixed(1)}x`,c:"#4caf50"});score++;}
+
+        // 6. نطاق ضيق NR (ضغط قبل الانفجار)
+        const last5=closes.slice(-6,-1);
+        const nr=(Math.max(...last5)-Math.min(...last5))/Math.min(...last5)*100;
+        if(nr<3){sigs.push({t:"NR ضغط",c:"#9c27b0"});score++;}
+
+        // 7. فوق EMA50
+        const ema50=calcEMA(closes,50);
+        if(ema50&&closes[n-1]>ema50){sigs.push({t:"فوق EMA50",c:"#ffeb3b"});score++;}
+
+        // 8. CHoCH: تغيير الطابع (كسر القاع ثم عودة فوق القمة)
+        const swingL=Math.min(...lows.slice(-11,-1));
+        const choch=lows.slice(-6).some(l=>l<swingL)&&closes[n-1]>swingH*0.99;
+        if(choch){sigs.push({t:"CHoCH",c:"#9c27b0"});score+=2;}
+
+        if(score<smcMinScore)return;
+
+        const risk=atr*1.5;
+        const sl=(price-risk).toFixed(2);
+        const tp1=(price+risk*2).toFixed(2);
+        const tp2=(price+risk*3).toFixed(2);
+        const tp3=(price+risk*4.5).toFixed(2);
+        const rr=risk>0?(risk*2/risk).toFixed(1):"2.0";
+        const strength=score>=6?"🔥 ممتاز":score>=4?"⭐ قوي":score>=3?"✅ جيد":"🔵 محتمل";
+        results.push({...s,price,rsi:rsi.toFixed(1),vol_exp:vol_exp.toFixed(1),score,sigs,sl,tp1,tp2,tp3,rr,strength,atr:atr.toFixed(2),nr:nr.toFixed(1)});
+      }catch(e){}
+    }));
+    results.sort((a,b)=>b.score-a.score);
+    setSmcResults(results.slice(0,20));
+    setSmcLoading(false);setSmcDone(true);
+  },[stocks,smcMarket,smcMinScore]);
+
   const sigData=useMemo(()=>generateSignals(chartData),[chartData]);
   const filtered=stocks.filter(s=>{const sm=sector==="الكل"||s.sector===sector;const qm=!search||s.name.includes(search)||(s.nameEn||"").toLowerCase().includes(search.toLowerCase())||s.symbol.includes(search);const sf=sigFilter==="الكل"||(!sigMap[s.symbol]?sigFilter==="الكل":sigFilter==="شراء"?(sigMap[s.symbol]?.strength>=4):sigFilter==="حيادي"?(sigMap[s.symbol]?.strength===3):sigFilter==="بيع"?(sigMap[s.symbol]?.strength<=2):sigFilter==="صاعد"?(s.data?.changePercent>0):sigFilter==="هابط"?(s.data?.changePercent<0):true);return sm&&qm&&sf});
 
@@ -397,7 +480,7 @@ export default function Home(){
         </div>
       </div></header>
 
-      <div className="maintabs"><button className={`mtb${mainView==="market"?" mact":""}`} onClick={()=>setMainView("market")}>📊 السوق</button><button className={`mtb${mainView==="scanner"?" mact":""}`} onClick={()=>setMainView("scanner")}>🎯 سكانر اليوم التالي</button><button className={`mtb${mainView==="usscanner"?" mact":""}`} onClick={()=>setMainView("usscanner")}>🇺🇸 سكانر السوق الأمريكي</button></div>
+      <div className="maintabs"><button className={`mtb${mainView==="market"?" mact":""}`} onClick={()=>setMainView("market")}>📊 السوق</button><button className={`mtb${mainView==="scanner"?" mact":""}`} onClick={()=>setMainView("scanner")}>🎯 سكانر اليوم التالي</button><button className={`mtb${mainView==="usscanner"?" mact":""}`} onClick={()=>setMainView("usscanner")}>🇺🇸 سكانر السوق الأمريكي</button><button className={`mtb${mainView==="smcscanner"?" mact":""}`} onClick={()=>setMainView("smcscanner")}>🧠 سكانر SMC</button></div>
       {mainView==="market"&&<div className="tbar"><div className="sbox"><span>🔍</span><input placeholder="ابحث عن سهم..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="stabs">{SECTORS.map(s=><button key={s} className={`stb${sector===s?" act":""}`} onClick={()=>setSector(s)}>{s}</button>)}</div><div className="vtog"><button className={view==="cards"?"act":""} onClick={()=>setView("cards")}>📊 بطاقات</button><button className={view==="heatmap"?"act":""} onClick={()=>setView("heatmap")}>🗺️ خريطة</button></div></div>}
       {mainView==="market"&&<div className="sigbar"><span className="sigbar-label">⚡ فلتر الإشارات:</span><div className="sigbtns">{["الكل","شراء","حيادي","بيع","صاعد","هابط"].map(f=><button key={f} className={`sfb sfb-${f}${sigFilter===f?" sact":""}`} onClick={()=>setSigFilter(f)}>{f==="الكل"?"📋 الكل":f==="شراء"?"🟢 شراء":f==="حيادي"?"🟡 حيادي":f==="بيع"?"🔴 بيع":f==="صاعد"?"📈 صاعد":"📉 هابط"}</button>)}</div><span className="sigbar-count">{filtered.length} سهم</span></div>}
 
@@ -485,6 +568,48 @@ export default function Home(){
                 <span className={s.conditions.c5?"cond-ok":"cond-no"}>شمعة +{s.candleChange}%</span>
                 <span className={s.conditions.c6?"cond-ok":"cond-no"}>كسر المقاومة</span>
                 <span className={s.conditions.c7?"cond-ok":"cond-no"}>RSI {s.rsi?.toFixed(0)}</span>
+              </div>
+            </div>
+          ))}</div>
+        </>}
+      </div>}
+      {mainView==="smcscanner"&&<div className="scanner-wrap">
+        <div className="scan-hdr">
+          <div><h2 className="scan-title">🧠 سكانر SMC الذكي</h2><p className="scan-sub">Order Block · FVG · BOS · CHoCH · RSI ارتداد · انفجار حجم · NR ضغط</p></div>
+          <button className="scanbtn" onClick={runSmcScanner} disabled={smcLoading}>{smcLoading?"⏳ جاري الفحص...":"⚡ تشغيل المسح"}</button>
+        </div>
+        <div className="us-price-controls">
+          <div className="usp-top-row">
+            <span className="usp-label">🔬 الحد الأدنى للإشارات:</span>
+            <div className="usp-custom" style={{gap:"8px"}}>
+              {[2,3,4,5].map(v=><button key={v} className={`usp-btn${smcMinScore===v?" usp-act":""}`} onClick={()=>setSmcMinScore(v)}>{v==="2"?"كل الإشارات":v===3?"3+ إشارات":v===4?"4+ قوي":v===5?"5+ ممتاز":v+"+ إشارات"}</button>)}
+            </div>
+          </div>
+        </div>
+        {smcLoading&&<div className="scan-loading"><div className="scan-spinner"/><p>يحلل إشارات SMC على كل الأسهم...</p></div>}
+        {smcDone&&!smcLoading&&<>
+          <div className="scan-summary">{smcResults.length>0?`✅ وجد ${smcResults.length} سهم بإشارات SMC`:"❌ لا توجد أسهم تحقق الشروط — جرب تخفيض الحد الأدنى للإشارات"}</div>
+          <div className="scan-disclaimer">⚠️ إشارات SMC تقنية بحتة · راجع الشارت قبل الدخول · ليس نصيحة استثمارية</div>
+          <div className="scan-grid">{smcResults.map((s,i)=>(
+            <div key={s.symbol} className="scan-card" style={{borderTop:`2px solid ${s.score>=6?"#26a69a":s.score>=4?"#ff9800":"#2196f3"}`}}>
+              <div className="sc-top">
+                <div className="sc-rank">#{i+1}</div>
+                <div className="sc-info"><span className="sc-name">{s.name}</span><span className="sc-sym">{s.symbol}</span></div>
+                <span className="sc-strength">{s.strength}</span>
+              </div>
+              <div className="sc-price">{s.price?.toFixed(2)} <small>ر.س</small></div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:"4px",margin:"6px 0"}}>
+                {s.sigs.map((sg,j)=><span key={j} style={{fontSize:"10px",padding:"2px 7px",borderRadius:"10px",background:sg.c+"22",color:sg.c,border:`1px solid ${sg.c}44`}}>{sg.t}</span>)}
+              </div>
+              <div className="sc-levels">
+                <div className="sc-lv grn">🎯 TP1 <span>{s.tp1}</span></div>
+                <div className="sc-lv grn">🎯 TP2 <span>{s.tp2}</span></div>
+                <div className="sc-lv grn">🎯 TP3 <span>{s.tp3}</span></div>
+                <div className="sc-lv red">🛑 SL <span>{s.sl}</span></div>
+              </div>
+              <div className="sc-vol-badge">RSI {s.rsi} · ATR {s.atr} · حجم {s.vol_exp}x · نطاق {s.nr}% · R:R 1:{s.rr}</div>
+              <div className="sc-conds">
+                <span style={{fontSize:"11px",color:"rgba(255,255,255,.5)"}}>نقاط: {s.score}/8</span>
               </div>
             </div>
           ))}</div>
