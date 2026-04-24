@@ -631,7 +631,6 @@ export default function Home(){
           ))}</div>
         </>}
       </div>}
-      </div>}
       {mainView==="ussmcscanner"&&<div className="scanner-wrap">
         <div className="scan-hdr">
           <div><h2 className="scan-title">🇺🇸 سكانر SMC الأمريكي</h2><p className="scan-sub">Order Block · FVG · BOS · CHoCH · RSI · انفجار حجم · NR — بيانات حقيقية EODHD</p></div>
