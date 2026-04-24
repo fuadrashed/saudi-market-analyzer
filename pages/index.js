@@ -251,6 +251,12 @@ export default function Home(){
   const[smcDone,setSmcDone]=useState(false);
   const[smcMarket,setSmcMarket]=useState("saudi");
   const[smcMinScore,setSmcMinScore]=useState(3);
+  const[usSmcResults,setUsSmcResults]=useState([]);
+  const[usSmcLoading,setUsSmcLoading]=useState(false);
+  const[usSmcDone,setUsSmcDone]=useState(false);
+  const[usSmcMinScore,setUsSmcMinScore]=useState(3);
+  const[usSmcMinPrice,setUsSmcMinPrice]=useState("0");
+  const[usSmcMaxPrice,setUsSmcMaxPrice]=useState("9999");
 
   // تحميل قائمة الأسهم الكاملة من EODHD عند أول تشغيل
   useEffect(()=>{
@@ -460,6 +466,16 @@ export default function Home(){
     setSmcLoading(false);setSmcDone(true);
   },[stocks,smcMarket,smcMinScore]);
 
+  // ─── سكانر SMC الأمريكي ──────────────────────────────
+  const runUsSmcScanner=useCallback(async()=>{
+    setUsSmcLoading(true);setUsSmcDone(false);setUsSmcResults([]);
+    try{
+      const r=await fetch(`/api/us-smc-scanner?minScore=${usSmcMinScore}&minPrice=${usSmcMinPrice}&maxPrice=${usSmcMaxPrice}`);
+      if(r.ok){const d=await r.json();setUsSmcResults(d.results||[]);}
+    }catch(e){console.log("US SMC scanner error:",e);}
+    setUsSmcLoading(false);setUsSmcDone(true);
+  },[usSmcMinScore,usSmcMinPrice,usSmcMaxPrice]);
+
   const sigData=useMemo(()=>generateSignals(chartData),[chartData]);
   const filtered=stocks.filter(s=>{const sm=sector==="الكل"||s.sector===sector;const qm=!search||s.name.includes(search)||(s.nameEn||"").toLowerCase().includes(search.toLowerCase())||s.symbol.includes(search);const sf=sigFilter==="الكل"||(!sigMap[s.symbol]?sigFilter==="الكل":sigFilter==="شراء"?(sigMap[s.symbol]?.strength>=4):sigFilter==="حيادي"?(sigMap[s.symbol]?.strength===3):sigFilter==="بيع"?(sigMap[s.symbol]?.strength<=2):sigFilter==="صاعد"?(s.data?.changePercent>0):sigFilter==="هابط"?(s.data?.changePercent<0):true);return sm&&qm&&sf});
 
@@ -480,7 +496,7 @@ export default function Home(){
         </div>
       </div></header>
 
-      <div className="maintabs"><button className={`mtb${mainView==="market"?" mact":""}`} onClick={()=>setMainView("market")}>📊 السوق</button><button className={`mtb${mainView==="scanner"?" mact":""}`} onClick={()=>setMainView("scanner")}>🎯 سكانر اليوم التالي</button><button className={`mtb${mainView==="usscanner"?" mact":""}`} onClick={()=>setMainView("usscanner")}>🇺🇸 سكانر السوق الأمريكي</button><button className={`mtb${mainView==="smcscanner"?" mact":""}`} onClick={()=>setMainView("smcscanner")}>🧠 سكانر SMC</button></div>
+      <div className="maintabs"><button className={`mtb${mainView==="market"?" mact":""}`} onClick={()=>setMainView("market")}>📊 السوق</button><button className={`mtb${mainView==="scanner"?" mact":""}`} onClick={()=>setMainView("scanner")}>🎯 سكانر اليوم التالي</button><button className={`mtb${mainView==="usscanner"?" mact":""}`} onClick={()=>setMainView("usscanner")}>🇺🇸 سكانر السوق الأمريكي</button><button className={`mtb${mainView==="smcscanner"?" mact":""}`} onClick={()=>setMainView("smcscanner")}>🧠 سكانر SMC</button><button className={`mtb${mainView==="ussmcscanner"?" mact":""}`} onClick={()=>setMainView("ussmcscanner")}>🇺🇸 SMC أمريكي</button></div>
       {mainView==="market"&&<div className="tbar"><div className="sbox"><span>🔍</span><input placeholder="ابحث عن سهم..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="stabs">{SECTORS.map(s=><button key={s} className={`stb${sector===s?" act":""}`} onClick={()=>setSector(s)}>{s}</button>)}</div><div className="vtog"><button className={view==="cards"?"act":""} onClick={()=>setView("cards")}>📊 بطاقات</button><button className={view==="heatmap"?"act":""} onClick={()=>setView("heatmap")}>🗺️ خريطة</button></div></div>}
       {mainView==="market"&&<div className="sigbar"><span className="sigbar-label">⚡ فلتر الإشارات:</span><div className="sigbtns">{["الكل","شراء","حيادي","بيع","صاعد","هابط"].map(f=><button key={f} className={`sfb sfb-${f}${sigFilter===f?" sact":""}`} onClick={()=>setSigFilter(f)}>{f==="الكل"?"📋 الكل":f==="شراء"?"🟢 شراء":f==="حيادي"?"🟡 حيادي":f==="بيع"?"🔴 بيع":f==="صاعد"?"📈 صاعد":"📉 هابط"}</button>)}</div><span className="sigbar-count">{filtered.length} سهم</span></div>}
 
@@ -611,6 +627,57 @@ export default function Home(){
               <div className="sc-conds">
                 <span style={{fontSize:"11px",color:"rgba(255,255,255,.5)"}}>نقاط: {s.score}/8</span>
               </div>
+            </div>
+          ))}</div>
+        </>}
+      </div>}
+      </div>}
+      {mainView==="ussmcscanner"&&<div className="scanner-wrap">
+        <div className="scan-hdr">
+          <div><h2 className="scan-title">🇺🇸 سكانر SMC الأمريكي</h2><p className="scan-sub">Order Block · FVG · BOS · CHoCH · RSI · انفجار حجم · NR — بيانات حقيقية EODHD</p></div>
+          <button className="scanbtn" onClick={runUsSmcScanner} disabled={usSmcLoading}>{usSmcLoading?"⏳ جاري الفحص...":"⚡ تشغيل المسح"}</button>
+        </div>
+        <div className="us-price-controls">
+          <div className="usp-top-row">
+            <span className="usp-label">🔬 الحد الأدنى للإشارات:</span>
+            <div className="usp-custom" style={{gap:"8px"}}>
+              {[2,3,4,5].map(v=><button key={v} className={`usp-btn${usSmcMinScore===v?" usp-act":""}`} onClick={()=>setUsSmcMinScore(v)}>{v===2?"2+ إشارات":v===3?"3+ إشارات":v===4?"4+ قوي":"5+ ممتاز"}</button>)}
+            </div>
+          </div>
+          <div className="usp-top-row" style={{marginTop:"8px"}}>
+            <span className="usp-label">💰 نطاق السعر ($):</span>
+            <div className="usp-custom" style={{gap:"8px"}}>
+              {[["1","10","Penny"],["10","50","صغيرة"],["50","200","متوسطة"],["0","9999","الكل"]].map(([mn,mx,lbl])=>(
+                <button key={lbl} className={`usp-btn${usSmcMinPrice===mn&&usSmcMaxPrice===mx?" usp-act":""}`} onClick={()=>{setUsSmcMinPrice(mn);setUsSmcMaxPrice(mx)}}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+        {usSmcLoading&&<div className="scan-loading"><div className="scan-spinner"/><p>يحلل إشارات SMC على الأسهم الأمريكية...</p></div>}
+        {usSmcDone&&!usSmcLoading&&<>
+          <div className="scan-summary">{usSmcResults.length>0?`✅ وجد ${usSmcResults.length} سهم أمريكي بإشارات SMC`:"❌ لا توجد أسهم — جرب تخفيض الحد الأدنى للإشارات"}</div>
+          <div className="scan-disclaimer">⚠️ السوق الأمريكي يفتح 4:30 مساءً بتوقيت السعودية · إشارات تقنية بحتة · ليس نصيحة استثمارية</div>
+          <div className="scan-grid">{usSmcResults.map((s,i)=>(
+            <div key={s.symbol} className="scan-card" style={{borderTop:`2px solid ${s.score>=6?"#26a69a":s.score>=4?"#ff9800":"#2196f3"}`}}>
+              <div className="sc-top">
+                <div className="sc-rank">#{i+1}</div>
+                <div className="sc-info">
+                  <span className="sc-name">{s.name}</span>
+                  <span className="sc-sym">{s.symbol} · {s.sector}</span>
+                </div>
+                <span className="sc-strength">{s.strength}</span>
+              </div>
+              <div className="sc-price">${s.price?.toFixed(2)} <small>USD</small> <span style={{fontSize:"11px",color:parseFloat(s.chgPct)>=0?"#26a69a":"#ef5350",marginRight:"6px"}}>{parseFloat(s.chgPct)>=0?"▲":"▼"}{Math.abs(s.chgPct)}%</span></div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:"4px",margin:"6px 0"}}>
+                {s.sigs.map((sg,j)=><span key={j} style={{fontSize:"10px",padding:"2px 7px",borderRadius:"10px",background:sg.c+"22",color:sg.c,border:`1px solid ${sg.c}44`}}>{sg.t}</span>)}
+              </div>
+              <div className="sc-levels">
+                <div className="sc-lv grn">🎯 TP1 <span>${s.tp1}</span></div>
+                <div className="sc-lv grn">🎯 TP2 <span>${s.tp2}</span></div>
+                <div className="sc-lv grn">🎯 TP3 <span>${s.tp3}</span></div>
+                <div className="sc-lv red">🛑 SL <span>${s.sl}</span></div>
+              </div>
+              <div className="sc-vol-badge">RSI {s.rsi} · ATR {s.atr} · حجم {s.vol_exp}x · نطاق {s.nr}% · نقاط {s.score}/12</div>
             </div>
           ))}</div>
         </>}
